@@ -51,8 +51,8 @@ class ParallelExecutionIntegrationTest : IntegrationTestBase() {
 
         // 2. Complete "prepare" → 3 parallel tasks created
         val prepareOutput = mapOf("prepared" to true)
-        taskQueue.completeTask(tasks1[0].id!!, prepareOutput)
-        executionEngine.onTaskCompleted(tasks1[0].id!!)
+        taskQueue.completeTask(tasks1[0], prepareOutput)
+        executionEngine.onTaskCompleted(tasks1[0], executionRepository.findById(execution.id!!).get())
 
         val tasks2 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
         val parallelTasks = tasks2.filter { it.stepType == StepType.PARALLEL }
@@ -71,24 +71,24 @@ class ParallelExecutionIntegrationTest : IntegrationTestBase() {
 
         // 3. Complete check-a → still waiting
         val checkA = parallelTasks.first { it.stepName == "check-a" }
-        taskQueue.completeTask(checkA.id!!, mapOf("a" to "done"))
-        executionEngine.onTaskCompleted(checkA.id!!)
+        taskQueue.completeTask(checkA, mapOf("a" to "done"))
+        executionEngine.onTaskCompleted(checkA, executionRepository.findById(execution.id!!).get())
 
         val tasks3 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
         assertFalse(tasks3.any { it.stepName == "combine" }, "combine should not exist yet")
 
         // 4. Complete check-b → still waiting
         val checkB = parallelTasks.first { it.stepName == "check-b" }
-        taskQueue.completeTask(checkB.id!!, mapOf("b" to "done"))
-        executionEngine.onTaskCompleted(checkB.id!!)
+        taskQueue.completeTask(checkB, mapOf("b" to "done"))
+        executionEngine.onTaskCompleted(checkB, executionRepository.findById(execution.id!!).get())
 
         val tasks4 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
         assertFalse(tasks4.any { it.stepName == "combine" }, "combine should not exist yet")
 
         // 5. Complete check-c → fan-in triggers → "combine" created
         val checkC = parallelTasks.first { it.stepName == "check-c" }
-        taskQueue.completeTask(checkC.id!!, mapOf("c" to "done"))
-        executionEngine.onTaskCompleted(checkC.id!!)
+        taskQueue.completeTask(checkC, mapOf("c" to "done"))
+        executionEngine.onTaskCompleted(checkC, executionRepository.findById(execution.id!!).get())
 
         val tasks5 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
         val combineTask = tasks5.firstOrNull { it.stepName == "combine" }
@@ -100,8 +100,8 @@ class ParallelExecutionIntegrationTest : IntegrationTestBase() {
         assertNotNull(combineInput)
 
         // 6. Complete combine → execution COMPLETED
-        taskQueue.completeTask(combineTask.id!!, mapOf("final" to "result"))
-        executionEngine.onTaskCompleted(combineTask.id!!)
+        taskQueue.completeTask(combineTask, mapOf("final" to "result"))
+        executionEngine.onTaskCompleted(combineTask, executionRepository.findById(execution.id!!).get())
 
         val completedExec = executionRepository.findById(execution.id!!).get()
         assertEquals(ExecutionStatus.COMPLETED, completedExec.status)
@@ -117,8 +117,8 @@ class ParallelExecutionIntegrationTest : IntegrationTestBase() {
 
         // Complete "prepare"
         val tasks1 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
-        taskQueue.completeTask(tasks1[0].id!!, mapOf("prepared" to true))
-        executionEngine.onTaskCompleted(tasks1[0].id!!)
+        taskQueue.completeTask(tasks1[0], mapOf("prepared" to true))
+        executionEngine.onTaskCompleted(tasks1[0], executionRepository.findById(execution.id!!).get())
 
         // Get parallel tasks
         val tasks2 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
@@ -127,8 +127,8 @@ class ParallelExecutionIntegrationTest : IntegrationTestBase() {
 
         // Complete check-a successfully
         val checkA = parallelTasks.first { it.stepName == "check-a" }
-        taskQueue.completeTask(checkA.id!!, mapOf("a" to "done"))
-        executionEngine.onTaskCompleted(checkA.id!!)
+        taskQueue.completeTask(checkA, mapOf("a" to "done"))
+        executionEngine.onTaskCompleted(checkA, executionRepository.findById(execution.id!!).get())
 
         // Fail check-b until dead-lettered (maxAttempts=1 in workflow config)
         val checkB = parallelTasks.first { it.stepName == "check-b" }
@@ -138,7 +138,8 @@ class ParallelExecutionIntegrationTest : IntegrationTestBase() {
             baseDelayMs = 100
         )
         taskQueue.failTask(checkB.id!!, "check-b failed", policy)
-        executionEngine.onTaskDeadLettered(checkB.id!!)
+        val deadLetteredCheckB = taskRepository.findById(checkB.id!!).get()
+        executionEngine.onTaskDeadLettered(deadLetteredCheckB, executionRepository.findById(execution.id!!).get())
 
         // Execution should NOT be FAILED — still waiting for check-c
         val execAfterFail = executionRepository.findById(execution.id!!).get()
@@ -146,8 +147,8 @@ class ParallelExecutionIntegrationTest : IntegrationTestBase() {
 
         // Complete check-c successfully
         val checkC = parallelTasks.first { it.stepName == "check-c" }
-        taskQueue.completeTask(checkC.id!!, mapOf("c" to "done"))
-        executionEngine.onTaskCompleted(checkC.id!!)
+        taskQueue.completeTask(checkC, mapOf("c" to "done"))
+        executionEngine.onTaskCompleted(checkC, executionRepository.findById(execution.id!!).get())
 
         // Fan-in should trigger → "combine" created with partial results
         val tasks3 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
@@ -164,8 +165,8 @@ class ParallelExecutionIntegrationTest : IntegrationTestBase() {
         assertFalse(combineInput.containsKey("check-b"), "Should NOT contain dead-lettered check-b output")
 
         // Complete combine → execution COMPLETED (not FAILED)
-        taskQueue.completeTask(combineTask.id!!, mapOf("final" to "partial-result"))
-        executionEngine.onTaskCompleted(combineTask.id!!)
+        taskQueue.completeTask(combineTask, mapOf("final" to "partial-result"))
+        executionEngine.onTaskCompleted(combineTask, executionRepository.findById(execution.id!!).get())
 
         val completedExec = executionRepository.findById(execution.id!!).get()
         assertEquals(ExecutionStatus.COMPLETED, completedExec.status,

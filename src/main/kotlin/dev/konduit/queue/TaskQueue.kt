@@ -96,17 +96,14 @@ class TaskQueue(
     /**
      * Mark a task as successfully completed.
      *
-     * Stores the output and clears all lock fields.
+     * Stores the output and clears all lock fields. The caller passes the task
+     * entity directly to avoid a redundant findById lookup.
      *
-     * @param taskId The ID of the task to complete.
+     * @param task The task entity to complete (caller already has it loaded).
      * @param output The task output to store (as a JSON-compatible map).
-     * @throws IllegalArgumentException if the task is not found.
      */
     @Transactional
-    fun completeTask(taskId: UUID, output: Map<String, Any>?) {
-        val task = taskRepository.findById(taskId)
-            .orElseThrow { IllegalArgumentException("Task not found: $taskId") }
-
+    fun completeTask(task: TaskEntity, output: Map<String, Any>?) {
         task.status = TaskStatus.COMPLETED
         task.output = output
         task.completedAt = Instant.now()
@@ -116,7 +113,7 @@ class TaskQueue(
 
         taskRepository.save(task)
 
-        log.debug("Task completed: taskId={}, stepName={}", taskId, task.stepName)
+        log.debug("Task completed: taskId={}, stepName={}", task.id, task.stepName)
     }
 
     /**

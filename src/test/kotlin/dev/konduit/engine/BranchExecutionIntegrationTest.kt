@@ -50,8 +50,8 @@ class BranchExecutionIntegrationTest : IntegrationTestBase() {
         assertEquals("evaluate", tasks1[0].stepName)
 
         // extractBranchCondition checks for "result" key
-        taskQueue.completeTask(tasks1[0].id!!, mapOf("result" to "LOW"))
-        executionEngine.onTaskCompleted(tasks1[0].id!!)
+        taskQueue.completeTask(tasks1[0], mapOf("result" to "LOW"))
+        executionEngine.onTaskCompleted(tasks1[0], executionRepository.findById(execution.id!!).get())
 
         // Only "fast-track" should be created (not deep-review, escalate, or manual)
         val tasks2 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
@@ -68,8 +68,8 @@ class BranchExecutionIntegrationTest : IntegrationTestBase() {
         assertFalse(tasks2.any { it.stepName == "manual" })
 
         // Complete fast-track → finalize should be created
-        taskQueue.completeTask(branchTasks[0].id!!, mapOf("result" to "fast-tracked"))
-        executionEngine.onTaskCompleted(branchTasks[0].id!!)
+        taskQueue.completeTask(branchTasks[0], mapOf("result" to "fast-tracked"))
+        executionEngine.onTaskCompleted(branchTasks[0], executionRepository.findById(execution.id!!).get())
 
         val tasks3 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
         val finalizeTask = tasks3.firstOrNull { it.stepName == "finalize" }
@@ -77,8 +77,8 @@ class BranchExecutionIntegrationTest : IntegrationTestBase() {
         assertEquals(TaskStatus.PENDING, finalizeTask!!.status)
 
         // Complete finalize → execution COMPLETED
-        taskQueue.completeTask(finalizeTask.id!!, mapOf("finalized" to true))
-        executionEngine.onTaskCompleted(finalizeTask.id!!)
+        taskQueue.completeTask(finalizeTask, mapOf("finalized" to true))
+        executionEngine.onTaskCompleted(finalizeTask, executionRepository.findById(execution.id!!).get())
 
         val completedExec = executionRepository.findById(execution.id!!).get()
         assertEquals(ExecutionStatus.COMPLETED, completedExec.status)
@@ -95,8 +95,8 @@ class BranchExecutionIntegrationTest : IntegrationTestBase() {
 
         // Complete "evaluate" with "UNKNOWN" (no matching branch)
         val tasks1 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
-        taskQueue.completeTask(tasks1[0].id!!, mapOf("result" to "UNKNOWN"))
-        executionEngine.onTaskCompleted(tasks1[0].id!!)
+        taskQueue.completeTask(tasks1[0], mapOf("result" to "UNKNOWN"))
+        executionEngine.onTaskCompleted(tasks1[0], executionRepository.findById(execution.id!!).get())
 
         // "manual" task from otherwise branch should be created
         val tasks2 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
@@ -106,13 +106,13 @@ class BranchExecutionIntegrationTest : IntegrationTestBase() {
         assertEquals("otherwise", branchTasks[0].branchKey)
 
         // Complete manual → finalize → execution COMPLETED
-        taskQueue.completeTask(branchTasks[0].id!!, mapOf("result" to "manual-done"))
-        executionEngine.onTaskCompleted(branchTasks[0].id!!)
+        taskQueue.completeTask(branchTasks[0], mapOf("result" to "manual-done"))
+        executionEngine.onTaskCompleted(branchTasks[0], executionRepository.findById(execution.id!!).get())
 
         val tasks3 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
         val finalizeTask = tasks3.first { it.stepName == "finalize" }
-        taskQueue.completeTask(finalizeTask.id!!, mapOf("finalized" to true))
-        executionEngine.onTaskCompleted(finalizeTask.id!!)
+        taskQueue.completeTask(finalizeTask, mapOf("finalized" to true))
+        executionEngine.onTaskCompleted(finalizeTask, executionRepository.findById(execution.id!!).get())
 
         val completedExec = executionRepository.findById(execution.id!!).get()
         assertEquals(ExecutionStatus.COMPLETED, completedExec.status)
@@ -128,8 +128,8 @@ class BranchExecutionIntegrationTest : IntegrationTestBase() {
 
         // Complete "evaluate" with "HIGH"
         val tasks1 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
-        taskQueue.completeTask(tasks1[0].id!!, mapOf("result" to "HIGH"))
-        executionEngine.onTaskCompleted(tasks1[0].id!!)
+        taskQueue.completeTask(tasks1[0], mapOf("result" to "HIGH"))
+        executionEngine.onTaskCompleted(tasks1[0], executionRepository.findById(execution.id!!).get())
 
         // "deep-review" should be created first (not "escalate")
         val tasks2 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
@@ -140,8 +140,8 @@ class BranchExecutionIntegrationTest : IntegrationTestBase() {
         assertFalse(tasks2.any { it.stepName == "escalate" }, "escalate should not exist yet")
 
         // Complete deep-review → escalate should be created (sequential within branch)
-        taskQueue.completeTask(branchTasks[0].id!!, mapOf("result" to "reviewed"))
-        executionEngine.onTaskCompleted(branchTasks[0].id!!)
+        taskQueue.completeTask(branchTasks[0], mapOf("result" to "reviewed"))
+        executionEngine.onTaskCompleted(branchTasks[0], executionRepository.findById(execution.id!!).get())
 
         val tasks3 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
         val escalateTask = tasks3.firstOrNull { it.stepName == "escalate" }
@@ -151,8 +151,8 @@ class BranchExecutionIntegrationTest : IntegrationTestBase() {
         assertEquals("HIGH", escalateTask.branchKey)
 
         // Complete escalate → finalize should be created (post-branch continuation)
-        taskQueue.completeTask(escalateTask.id!!, mapOf("result" to "escalated"))
-        executionEngine.onTaskCompleted(escalateTask.id!!)
+        taskQueue.completeTask(escalateTask, mapOf("result" to "escalated"))
+        executionEngine.onTaskCompleted(escalateTask, executionRepository.findById(execution.id!!).get())
 
         val tasks4 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
         val finalizeTask = tasks4.firstOrNull { it.stepName == "finalize" }
@@ -160,8 +160,8 @@ class BranchExecutionIntegrationTest : IntegrationTestBase() {
         assertEquals(TaskStatus.PENDING, finalizeTask!!.status)
 
         // Complete finalize → execution COMPLETED
-        taskQueue.completeTask(finalizeTask.id!!, mapOf("finalized" to true))
-        executionEngine.onTaskCompleted(finalizeTask.id!!)
+        taskQueue.completeTask(finalizeTask, mapOf("finalized" to true))
+        executionEngine.onTaskCompleted(finalizeTask, executionRepository.findById(execution.id!!).get())
 
         val completedExec = executionRepository.findById(execution.id!!).get()
         assertEquals(ExecutionStatus.COMPLETED, completedExec.status)
@@ -178,8 +178,8 @@ class BranchExecutionIntegrationTest : IntegrationTestBase() {
 
         // Complete "evaluate" with "LOW"
         val tasks1 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
-        taskQueue.completeTask(tasks1[0].id!!, mapOf("result" to "LOW"))
-        executionEngine.onTaskCompleted(tasks1[0].id!!)
+        taskQueue.completeTask(tasks1[0], mapOf("result" to "LOW"))
+        executionEngine.onTaskCompleted(tasks1[0], executionRepository.findById(execution.id!!).get())
 
         // Get the branch task
         val tasks2 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
@@ -192,7 +192,8 @@ class BranchExecutionIntegrationTest : IntegrationTestBase() {
             baseDelayMs = 100
         )
         taskQueue.failTask(branchTask.id!!, "branch step failed", policy)
-        executionEngine.onTaskDeadLettered(branchTask.id!!)
+        val deadLetteredBranch = taskRepository.findById(branchTask.id!!).get()
+        executionEngine.onTaskDeadLettered(deadLetteredBranch, executionRepository.findById(execution.id!!).get())
 
         // Execution should be FAILED
         val failedExec = executionRepository.findById(execution.id!!).get()

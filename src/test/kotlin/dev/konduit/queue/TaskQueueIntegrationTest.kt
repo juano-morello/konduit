@@ -97,7 +97,7 @@ class TaskQueueIntegrationTest : IntegrationTestBase() {
         val task = createPendingTask()
         val acquired = taskQueue.acquireTask("worker-1")!!
         val output = mapOf("result" to "success")
-        taskQueue.completeTask(acquired.id!!, output)
+        taskQueue.completeTask(acquired, output)
 
         val completed = taskRepository.findById(task.id!!).get()
         assertEquals(TaskStatus.COMPLETED, completed.status)

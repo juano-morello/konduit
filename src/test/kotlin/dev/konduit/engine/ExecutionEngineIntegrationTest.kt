@@ -55,8 +55,8 @@ class ExecutionEngineIntegrationTest : IntegrationTestBase() {
 
         // 2. Complete step-1 → step-2 should be created
         val step1Output = mapOf("step1" to "done")
-        taskQueue.completeTask(tasks1[0].id!!, step1Output)
-        executionEngine.onTaskCompleted(tasks1[0].id!!)
+        taskQueue.completeTask(tasks1[0], step1Output)
+        executionEngine.onTaskCompleted(tasks1[0], executionRepository.findById(execution.id!!).get())
 
         val tasks2 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
         assertEquals(2, tasks2.size)
@@ -66,8 +66,8 @@ class ExecutionEngineIntegrationTest : IntegrationTestBase() {
 
         // 3. Complete step-2 → step-3 should be created
         val step2Output = mapOf("step2" to "done")
-        taskQueue.completeTask(step2Task.id!!, step2Output)
-        executionEngine.onTaskCompleted(step2Task.id!!)
+        taskQueue.completeTask(step2Task, step2Output)
+        executionEngine.onTaskCompleted(step2Task, executionRepository.findById(execution.id!!).get())
 
         val tasks3 = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
         assertEquals(3, tasks3.size)
@@ -77,8 +77,8 @@ class ExecutionEngineIntegrationTest : IntegrationTestBase() {
 
         // 4. Complete step-3 → execution should be COMPLETED
         val finalOutput = mapOf("final" to "result")
-        taskQueue.completeTask(step3Task.id!!, finalOutput)
-        executionEngine.onTaskCompleted(step3Task.id!!)
+        taskQueue.completeTask(step3Task, finalOutput)
+        executionEngine.onTaskCompleted(step3Task, executionRepository.findById(execution.id!!).get())
 
         val completedExec = executionRepository.findById(execution.id!!).get()
         assertEquals(ExecutionStatus.COMPLETED, completedExec.status)
@@ -106,7 +106,8 @@ class ExecutionEngineIntegrationTest : IntegrationTestBase() {
             baseDelayMs = 100
         )
         taskQueue.failTask(task.id!!, "fatal error", policy)
-        executionEngine.onTaskDeadLettered(task.id!!)
+        val deadLetteredTask = taskRepository.findById(task.id!!).get()
+        executionEngine.onTaskDeadLettered(deadLetteredTask, executionRepository.findById(execution.id!!).get())
 
         val failedExec = executionRepository.findById(execution.id!!).get()
         assertEquals(ExecutionStatus.FAILED, failedExec.status)
@@ -132,8 +133,8 @@ class ExecutionEngineIntegrationTest : IntegrationTestBase() {
         // Complete the first task — engine should NOT create step-2
         val tasks = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)
         val step1 = tasks[0]
-        taskQueue.completeTask(step1.id!!, mapOf("done" to true))
-        executionEngine.onTaskCompleted(step1.id!!)
+        taskQueue.completeTask(step1, mapOf("done" to true))
+        executionEngine.onTaskCompleted(step1, executionRepository.findById(execution.id!!).get())
 
         // Should still be only 1 task (no step-2 created)
         val allTasks = taskRepository.findByExecutionIdOrderByStepOrderAsc(execution.id!!)

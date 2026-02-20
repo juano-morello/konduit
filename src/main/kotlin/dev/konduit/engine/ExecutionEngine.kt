@@ -5,6 +5,7 @@ import dev.konduit.observability.MetricsService
 import dev.konduit.persistence.entity.ExecutionEntity
 import dev.konduit.persistence.entity.ExecutionStatus
 import dev.konduit.persistence.entity.StepType
+import dev.konduit.persistence.entity.TaskEntity
 import dev.konduit.persistence.repository.ExecutionRepository
 import dev.konduit.persistence.repository.TaskRepository
 import dev.konduit.persistence.repository.WorkflowRepository
@@ -133,14 +134,8 @@ class ExecutionEngine(
      * - If the execution is CANCELLED: does nothing (prevents new task dispatch).
      */
     @Transactional
-    override fun onTaskCompleted(taskId: UUID) {
-        val task = taskRepository.findById(taskId).orElseThrow {
-            IllegalArgumentException("Task $taskId not found")
-        }
-
-        val execution = executionRepository.findById(task.executionId).orElseThrow {
-            IllegalStateException("Execution ${task.executionId} not found for task $taskId")
-        }
+    override fun onTaskCompleted(task: TaskEntity, execution: ExecutionEntity) {
+        val taskId = requireNotNull(task.id) { "Task ID must not be null" }
 
         // If execution is cancelled or in a terminal state, don't advance
         if (stateMachine.isTerminal(execution.status)) {
@@ -302,14 +297,8 @@ class ExecutionEngine(
      * The post-parallel step receives only successful outputs.
      */
     @Transactional
-    override fun onTaskDeadLettered(taskId: UUID) {
-        val task = taskRepository.findById(taskId).orElseThrow {
-            IllegalArgumentException("Task $taskId not found")
-        }
-
-        val execution = executionRepository.findById(task.executionId).orElseThrow {
-            IllegalStateException("Execution ${task.executionId} not found for task $taskId")
-        }
+    override fun onTaskDeadLettered(task: TaskEntity, execution: ExecutionEntity) {
+        val taskId = requireNotNull(task.id) { "Task ID must not be null" }
 
         // If already in a terminal state, skip
         if (stateMachine.isTerminal(execution.status)) {
