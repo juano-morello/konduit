@@ -63,9 +63,13 @@ konduit:
     lock-timeout: 5m
     reaper-interval: 30s
     batch-size: 1
+  redis:
+    enabled: true
+    channel: "konduit:tasks"
   leader:
     lock-ttl: 30s
     renew-interval: 10s
+    lock-key: "konduit:leader"
   execution:
     default-timeout: 30m
     timeout-check-interval: 30s

@@ -9,7 +9,8 @@ data class KonduitProperties(
     val queue: QueueProperties = QueueProperties(),
     val leader: LeaderProperties = LeaderProperties(),
     val execution: ExecutionProperties = ExecutionProperties(),
-    val retry: RetryDefaults = RetryDefaults()
+    val retry: RetryDefaults = RetryDefaults(),
+    val redis: RedisProperties = RedisProperties()
 ) {
     data class WorkerProperties(
         /** Number of concurrent tasks a single worker can execute */
@@ -37,7 +38,9 @@ data class KonduitProperties(
         /** TTL for the leader election lock in Redis */
         val lockTtl: Duration = Duration.ofSeconds(30),
         /** Interval for renewing the leader lock (should be < lockTtl / 2) */
-        val renewInterval: Duration = Duration.ofSeconds(10)
+        val renewInterval: Duration = Duration.ofSeconds(10),
+        /** Redis key used for leader election lock */
+        val lockKey: String = "konduit:leader"
     )
 
     data class ExecutionProperties(
@@ -45,6 +48,13 @@ data class KonduitProperties(
         val defaultTimeout: Duration = Duration.ofMinutes(30),
         /** Interval for checking timed-out executions */
         val timeoutCheckInterval: Duration = Duration.ofSeconds(30)
+    )
+
+    data class RedisProperties(
+        /** Whether Redis coordination is enabled */
+        val enabled: Boolean = true,
+        /** Redis pub/sub channel for task notifications */
+        val channel: String = "konduit:tasks"
     )
 
     data class RetryDefaults(

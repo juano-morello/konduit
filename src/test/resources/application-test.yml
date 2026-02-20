@@ -25,6 +25,8 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
 konduit:
+  redis:
+    enabled: false
   worker:
     concurrency: 5
     heartbeat-interval: 10s
@@ -35,6 +37,10 @@ konduit:
     lock-timeout: 1m
     reaper-interval: 5s
     batch-size: 1
+  leader:
+    lock-ttl: 30s
+    renew-interval: 10s
+    lock-key: "konduit:leader"
   execution:
     default-timeout: 5m
     timeout-check-interval: 5s

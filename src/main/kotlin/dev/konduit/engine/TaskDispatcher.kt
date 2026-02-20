@@ -1,5 +1,6 @@
 package dev.konduit.engine
 
+import dev.konduit.coordination.TaskNotifier
 import dev.konduit.dsl.BranchBlock
 import dev.konduit.dsl.ParallelBlock
 import dev.konduit.dsl.StepDefinition
@@ -24,7 +25,8 @@ import java.util.UUID
  */
 @Component
 class TaskDispatcher(
-    private val taskRepository: TaskRepository
+    private val taskRepository: TaskRepository,
+    private val taskNotifier: TaskNotifier
 ) {
     private val log = LoggerFactory.getLogger(TaskDispatcher::class.java)
 
@@ -189,6 +191,7 @@ class TaskDispatcher(
             "Created sequential task {} for execution {}, step '{}' (element {})",
             saved.id, executionId, step.name, elementIndex
         )
+        taskNotifier.notifyTasksAvailable()
         return saved
     }
 
@@ -223,6 +226,7 @@ class TaskDispatcher(
             saved.size, executionId, block.name, elementIndex,
             saved.joinToString(", ") { "${it.stepName}(${it.id})" }
         )
+        taskNotifier.notifyTasksAvailable()
         return saved
     }
 
@@ -302,6 +306,7 @@ class TaskDispatcher(
             "Created branch task {} for execution {}, step '{}' (branch '{}', key '{}', element {})",
             saved.id, executionId, step.name, branchBlockName, branchKey, elementIndex
         )
+        taskNotifier.notifyTasksAvailable()
         return saved
     }
 
