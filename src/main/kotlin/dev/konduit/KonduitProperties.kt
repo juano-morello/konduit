@@ -24,7 +24,7 @@ data class KonduitProperties(
         /** Threshold after which a worker is considered stale */
         val staleThreshold: Duration = Duration.ofSeconds(60),
         /** Interval between polling attempts when no tasks are available */
-        val pollInterval: Duration = Duration.ofSeconds(1)
+        val pollInterval: Duration = Duration.ofMillis(200)
     )
 
     data class QueueProperties(
@@ -33,7 +33,7 @@ data class KonduitProperties(
         /** Interval for the orphan reclaimer to check for stuck tasks */
         val reaperInterval: Duration = Duration.ofSeconds(30),
         /** Maximum number of tasks to acquire in a single poll */
-        val batchSize: Int = 1
+        val batchSize: Int = 5
     )
 
     data class LeaderProperties(

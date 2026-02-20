@@ -107,7 +107,10 @@ class TaskWorker(
     }
 
     /**
-     * Poll for a task and submit it for execution if capacity is available.
+     * Poll for tasks and submit them for execution if capacity is available.
+     *
+     * Acquires up to min(availableCapacity, batchSize) tasks per poll cycle
+     * to maximize throughput and reduce per-task polling overhead.
      */
     private fun pollAndExecute() {
         try {
@@ -116,22 +119,27 @@ class TaskWorker(
             }
 
             val concurrency = properties.worker.concurrency
-            if (taskWorkerState.activeTaskCount >= concurrency) {
+            val availableCapacity = concurrency - taskWorkerState.activeTaskCount
+            if (availableCapacity <= 0) {
                 return
             }
 
             val workerId = taskWorkerState.workerId ?: return
-            val task = taskQueue.acquireTask(workerId) ?: return
+            val batchSize = properties.queue.batchSize
+            val limit = minOf(availableCapacity, batchSize)
+            val tasks = taskQueue.acquireTasks(workerId, limit)
 
-            taskWorkerState.incrementActiveTasks()
+            for (task in tasks) {
+                taskWorkerState.incrementActiveTasks()
 
-            taskExecutor.submit {
-                try {
-                    executeTask(task)
-                } catch (e: Exception) {
-                    log.error("Unexpected error executing task {}: {}", task.id, e.message, e)
-                } finally {
-                    taskWorkerState.decrementActiveTasks()
+                taskExecutor.submit {
+                    try {
+                        executeTask(task)
+                    } catch (e: Exception) {
+                        log.error("Unexpected error executing task {}: {}", task.id, e.message, e)
+                    } finally {
+                        taskWorkerState.decrementActiveTasks()
+                    }
                 }
             }
         } catch (e: Exception) {

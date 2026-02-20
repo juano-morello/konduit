@@ -62,11 +62,11 @@ konduit:
     heartbeat-interval: 10s
     drain-timeout: 30s
     stale-threshold: 60s
-    poll-interval: 1s
+    poll-interval: 200ms
   queue:
     lock-timeout: 5m
     reaper-interval: 30s
-    batch-size: 1
+    batch-size: 5
   redis:
     enabled: true
     channel: "konduit:tasks"

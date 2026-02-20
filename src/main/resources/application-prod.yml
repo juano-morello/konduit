@@ -31,6 +31,12 @@ logging:
     org.hibernate.SQL: WARN
     org.hibernate: WARN
 
+konduit:
+  worker:
+    poll-interval: 200ms
+  queue:
+    batch-size: 5
+
 server:
   tomcat:
     max-threads: 200

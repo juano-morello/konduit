@@ -37,7 +37,7 @@ konduit:
   queue:
     lock-timeout: 1m
     reaper-interval: 5s
-    batch-size: 1
+    batch-size: 5
   leader:
     lock-ttl: 30s
     renew-interval: 10s

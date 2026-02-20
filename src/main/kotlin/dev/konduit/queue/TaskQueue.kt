@@ -46,32 +46,49 @@ class TaskQueue(
      */
     @Transactional
     fun acquireTask(workerId: String): TaskEntity? {
+        return acquireTasks(workerId, 1).firstOrNull()
+    }
+
+    /**
+     * Acquire up to [limit] PENDING tasks for the given worker in a single transaction.
+     *
+     * Uses SELECT FOR UPDATE SKIP LOCKED to ensure concurrent workers
+     * never receive the same tasks. All acquired tasks are atomically
+     * transitioned to LOCKED status.
+     *
+     * @param workerId Unique identifier of the worker acquiring the tasks.
+     * @param limit Maximum number of tasks to acquire.
+     * @return List of acquired [TaskEntity] instances (may be empty).
+     */
+    @Transactional
+    fun acquireTasks(workerId: String, limit: Int): List<TaskEntity> {
         val acquireStart = Instant.now()
-        val tasks = taskRepository.acquireTasks(1)
+        val tasks = taskRepository.acquireTasks(limit)
         if (tasks.isEmpty()) {
-            return null
+            return emptyList()
         }
 
-        val task = tasks.first()
         val now = Instant.now()
         val lockTimeout = properties.queue.lockTimeout
 
-        task.status = TaskStatus.LOCKED
-        task.lockedBy = workerId
-        task.lockedAt = now
-        task.lockTimeoutAt = now.plus(lockTimeout)
+        val lockedTasks = tasks.map { task ->
+            task.status = TaskStatus.LOCKED
+            task.lockedBy = workerId
+            task.lockedAt = now
+            task.lockTimeoutAt = now.plus(lockTimeout)
 
-        log.info(
-            "Task acquired: taskId={}, stepName={}, workerId={}, lockTimeout={}",
-            task.id, task.stepName, workerId, lockTimeout
-        )
+            log.info(
+                "Task acquired: taskId={}, stepName={}, workerId={}, lockTimeout={}",
+                task.id, task.stepName, workerId, lockTimeout
+            )
 
-        val saved = taskRepository.save(task)
+            taskRepository.save(task)
+        }
 
         // Record acquisition duration
         metricsService?.recordTaskAcquisitionDuration(Duration.between(acquireStart, Instant.now()))
 
-        return saved
+        return lockedTasks
     }
 
     /**

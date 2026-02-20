@@ -326,7 +326,7 @@ All configuration properties are under the `konduit.*` prefix in `application.ym
 | `heartbeat-interval` | `10s` | Interval between heartbeat updates |
 | `drain-timeout` | `30s` | Time to wait for in-progress tasks during graceful shutdown |
 | `stale-threshold` | `60s` | Threshold after which a worker is considered stale |
-| `poll-interval` | `1s` | Interval between polling attempts when no tasks are available |
+| `poll-interval` | `200ms` | Interval between polling attempts when no tasks are available |
 
 ### Queue Configuration (`konduit.queue.*`)
 
@@ -334,7 +334,7 @@ All configuration properties are under the `konduit.*` prefix in `application.ym
 |----------|---------|-------------|
 | `lock-timeout` | `5m` | Duration after which a locked task is considered orphaned |
 | `reaper-interval` | `30s` | Interval for the orphan reclaimer to check for stuck tasks |
-| `batch-size` | `1` | Maximum number of tasks to acquire in a single poll |
+| `batch-size` | `5` | Maximum number of tasks to acquire in a single poll |
 
 ### Leader Election (`konduit.leader.*`)
 
