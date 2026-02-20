@@ -21,6 +21,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
+import org.springframework.data.redis.listener.ChannelTopic
+import org.springframework.data.redis.listener.RedisMessageListenerContainer
 import java.net.InetAddress
 import java.time.Duration
 import java.time.Instant
@@ -28,6 +30,7 @@ import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Main worker component that polls for tasks and executes them.
@@ -60,11 +63,24 @@ class TaskWorker(
     @Autowired(required = false)
     private var metricsService: MetricsService? = null
 
+    /** Redis message listener container for pub/sub subscription. Null when Redis is disabled. */
+    @Autowired(required = false)
+    private var redisMessageListenerContainer: RedisMessageListenerContainer? = null
+
     /** Thread pool for executing tasks concurrently. */
     private lateinit var taskExecutor: java.util.concurrent.ExecutorService
 
     /** Scheduler for the poll loop. */
     private lateinit var pollScheduler: ScheduledExecutorService
+
+    /** Timestamp of the last poll, used for debouncing Redis-triggered polls. */
+    private val lastPollTimestamp = AtomicLong(0L)
+
+    /** Minimum interval between Redis-triggered polls (debounce window). */
+    private val redisPollDebounceMs = 50L
+
+    /** The Redis channel topic for unsubscription during shutdown. */
+    private var redisChannelTopic: ChannelTopic? = null
 
     /**
      * Initialize and start the worker on application ready.
@@ -100,10 +116,44 @@ class TaskWorker(
             TimeUnit.MILLISECONDS
         )
 
+        // Subscribe to Redis pub/sub for instant task notifications (if Redis is available)
+        subscribeToRedisChannel()
+
         log.info(
-            "TaskWorker started: workerId={}, concurrency={}, pollInterval={}ms",
-            workerId, concurrency, pollIntervalMs
+            "TaskWorker started: workerId={}, concurrency={}, pollInterval={}ms, redisPubSub={}",
+            workerId, concurrency, pollIntervalMs, redisChannelTopic != null
         )
+    }
+
+    /**
+     * Subscribe to the Redis pub/sub channel for instant task notifications.
+     *
+     * When a message is received on the channel, triggers an immediate [pollAndExecute]
+     * with debouncing to avoid redundant polls. If Redis is not available (disabled or
+     * not configured), this is a no-op and the worker falls back to fixed-interval polling.
+     */
+    private fun subscribeToRedisChannel() {
+        val container = redisMessageListenerContainer ?: return
+        val channel = properties.redis.channel
+        val topic = ChannelTopic(channel)
+
+        try {
+            container.addMessageListener({ _, _ ->
+                // Debounce: skip if last poll was less than 50ms ago
+                val now = System.currentTimeMillis()
+                val lastPoll = lastPollTimestamp.get()
+                if (now - lastPoll >= redisPollDebounceMs) {
+                    if (lastPollTimestamp.compareAndSet(lastPoll, now)) {
+                        log.debug("Redis notification received on channel '{}', triggering immediate poll", channel)
+                        pollAndExecute()
+                    }
+                }
+            }, topic)
+            redisChannelTopic = topic
+            log.info("Subscribed to Redis channel '{}' for instant task notifications", channel)
+        } catch (e: Exception) {
+            log.warn("Failed to subscribe to Redis channel '{}': {}. Falling back to polling only.", channel, e.message)
+        }
     }
 
     /**
@@ -163,9 +213,13 @@ class TaskWorker(
         task.startedAt = taskStartTime
         taskRepository.save(task)
 
+        // Cache execution reference outside try block so error path can use it
+        // without a redundant DB fetch
+        var execution: dev.konduit.persistence.entity.ExecutionEntity? = null
+
         try {
-            // Look up the workflow definition
-            val execution = executionRepository.findById(task.executionId).orElseThrow {
+            // Look up the execution (single fetch — passed through to advancer)
+            execution = executionRepository.findById(task.executionId).orElseThrow {
                 IllegalStateException("Execution ${task.executionId} not found for task $taskId")
             }
 
@@ -229,9 +283,9 @@ class TaskWorker(
                 else -> mapOf("result" to output)
             }
 
-            // Report success
-            taskQueue.completeTask(taskId, outputMap)
-            executionAdvancer.onTaskCompleted(taskId)
+            // Report success — pass entities through to avoid redundant DB lookups
+            taskQueue.completeTask(task, outputMap)
+            executionAdvancer.onTaskCompleted(task, execution)
 
             // Record task completion metrics
             val duration = Duration.between(taskStartTime, Instant.now())
@@ -250,18 +304,21 @@ class TaskWorker(
 
             taskQueue.failTask(taskId, e.message ?: "Unknown error", retryPolicy)
 
-            // Record task failure metrics
+            // Record task failure metrics — use cached execution to avoid redundant DB fetch
             val duration = Duration.between(taskStartTime, Instant.now())
-            val workflowName = try {
-                executionRepository.findById(task.executionId).orElse(null)?.workflowName ?: "unknown"
-            } catch (_: Exception) { "unknown" }
+            val workflowName = execution?.workflowName ?: "unknown"
             metricsService?.recordTaskFailed(workflowName, task.stepName, duration)
 
             // If the task was dead-lettered (exhausted retries), notify the engine
             val updatedTask = taskRepository.findById(taskId).orElse(null)
             if (updatedTask != null && updatedTask.status == TaskStatus.DEAD_LETTER) {
                 metricsService?.recordTaskRetry(workflowName, task.stepName)
-                executionAdvancer.onTaskDeadLettered(taskId)
+                // Pass entities to avoid redundant lookups in the advancer.
+                // If execution was loaded before the error, use it; otherwise fetch once.
+                val exec = execution ?: executionRepository.findById(task.executionId).orElseThrow {
+                    IllegalStateException("Execution ${task.executionId} not found for dead-lettered task $taskId")
+                }
+                executionAdvancer.onTaskDeadLettered(updatedTask, exec)
             } else if (updatedTask != null && updatedTask.status == TaskStatus.PENDING) {
                 // Task was retried (not dead-lettered)
                 metricsService?.recordTaskRetry(workflowName, task.stepName)
@@ -272,15 +329,32 @@ class TaskWorker(
         }
     }
 
+    /**
+     * Unsubscribe from the Redis pub/sub channel during shutdown.
+     * Safe to call even if never subscribed (no-op if [redisChannelTopic] is null).
+     */
+    private fun unsubscribeFromRedisChannel() {
+        val topic = redisChannelTopic ?: return
+        val container = redisMessageListenerContainer ?: return
+        try {
+            container.removeMessageListener(null, topic)
+            redisChannelTopic = null
+            log.info("Unsubscribed from Redis channel '{}'", topic.topic)
+        } catch (e: Exception) {
+            log.warn("Failed to unsubscribe from Redis channel '{}': {}", topic.topic, e.message)
+        }
+    }
+
 
     /**
      * Graceful shutdown.
      *
      * 1. Set status to DRAINING (stop accepting new tasks in poll loop)
-     * 2. Shut down the poll scheduler
-     * 3. Await thread pool termination up to drain timeout
-     * 4. Release any remaining locked tasks
-     * 5. Deregister via WorkerRegistry
+     * 2. Unsubscribe from Redis pub/sub channel
+     * 3. Shut down the poll scheduler
+     * 4. Await thread pool termination up to drain timeout
+     * 5. Release any remaining locked tasks
+     * 6. Deregister via WorkerRegistry
      */
     @PreDestroy
     fun shutdown() {
@@ -292,13 +366,16 @@ class TaskWorker(
         taskWorkerState.status.set(WorkerLifecycleStatus.DRAINING)
         log.info("Worker {} status set to DRAINING — no new tasks will be accepted", workerId)
 
-        // Step 2: Stop the poll scheduler
+        // Step 2: Unsubscribe from Redis pub/sub channel
+        unsubscribeFromRedisChannel()
+
+        // Step 3: Stop the poll scheduler
         if (::pollScheduler.isInitialized) {
             pollScheduler.shutdown()
             log.info("Worker {} poll scheduler stopped", workerId)
         }
 
-        // Step 3: Await thread pool termination
+        // Step 4: Await thread pool termination
         val drainTimeoutMs = properties.worker.drainTimeout.toMillis()
         if (::taskExecutor.isInitialized) {
             taskExecutor.shutdown()
@@ -314,7 +391,7 @@ class TaskWorker(
             }
         }
 
-        // Step 4: Release any remaining locked tasks
+        // Step 5: Release any remaining locked tasks
         try {
             val lockedTasks = taskRepository.findByLockedBy(workerId)
             for (task in lockedTasks) {
@@ -332,7 +409,7 @@ class TaskWorker(
             log.error("Failed to release locked tasks during shutdown: {}", e.message)
         }
 
-        // Step 5: Deregister
+        // Step 6: Deregister
         try {
             workerRegistry.deregister(workerId)
             log.info("Worker {} deregistered successfully", workerId)
