@@ -29,7 +29,7 @@ class TaskQueue(
     private val deadLetterQueue: DeadLetterQueue,
     private val properties: KonduitProperties
 ) {
-    private val logger = LoggerFactory.getLogger(TaskQueue::class.java)
+    private val log = LoggerFactory.getLogger(TaskQueue::class.java)
 
     @Autowired(required = false)
     private var metricsService: MetricsService? = null
@@ -61,7 +61,7 @@ class TaskQueue(
         task.lockedAt = now
         task.lockTimeoutAt = now.plus(lockTimeout)
 
-        logger.info(
+        log.info(
             "Task acquired: taskId={}, stepName={}, workerId={}, lockTimeout={}",
             task.id, task.stepName, workerId, lockTimeout
         )
@@ -97,7 +97,7 @@ class TaskQueue(
 
         taskRepository.save(task)
 
-        logger.info("Task completed: taskId={}, stepName={}", taskId, task.stepName)
+        log.info("Task completed: taskId={}, stepName={}", taskId, task.stepName)
     }
 
     /**
@@ -131,7 +131,7 @@ class TaskQueue(
 
             taskRepository.save(task)
 
-            logger.info(
+            log.info(
                 "Task scheduled for retry: taskId={}, attempt={}/{}, nextRetryAt={}",
                 taskId, task.attempt, retryPolicy.maxAttempts, task.nextRetryAt
             )
@@ -146,7 +146,7 @@ class TaskQueue(
             )
             deadLetterQueue.deadLetter(task, listOf(attemptRecord))
 
-            logger.warn(
+            log.warn(
                 "Task dead-lettered: taskId={}, stepName={}, attempts={}",
                 taskId, task.stepName, task.attempt
             )
@@ -174,7 +174,7 @@ class TaskQueue(
 
         taskRepository.save(task)
 
-        logger.info("Task released: taskId={}, stepName={}", taskId, task.stepName)
+        log.info("Task released: taskId={}, stepName={}", taskId, task.stepName)
     }
 }
 

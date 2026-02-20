@@ -144,8 +144,8 @@ class TaskWorker(
      * build a StepContext, invoke the handler, then report the result.
      */
     private fun executeTask(task: TaskEntity) {
-        val taskId = task.id!!
-        val workerId = taskWorkerState.workerId!!
+        val taskId = requireNotNull(task.id) { "Task ID must not be null after persistence" }
+        val workerId = requireNotNull(taskWorkerState.workerId) { "Worker ID must not be null during task execution" }
         val taskStartTime = Instant.now()
 
         log.info("Executing task {}: step '{}', attempt {}", taskId, task.stepName, task.attempt + 1)
@@ -311,7 +311,7 @@ class TaskWorker(
             val lockedTasks = taskRepository.findByLockedBy(workerId)
             for (task in lockedTasks) {
                 try {
-                    taskQueue.releaseTask(task.id!!)
+                    taskQueue.releaseTask(requireNotNull(task.id) { "Task ID must not be null for locked task" })
                     log.info("Released task {} (step '{}') during shutdown", task.id, task.stepName)
                 } catch (e: Exception) {
                     log.error("Failed to release task {} during shutdown: {}", task.id, e.message)

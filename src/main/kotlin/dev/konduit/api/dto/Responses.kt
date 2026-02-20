@@ -22,7 +22,7 @@ data class ExecutionResponse(
 ) {
     companion object {
         fun from(entity: ExecutionEntity) = ExecutionResponse(
-            id = entity.id!!,
+            id = requireNotNull(entity.id) { "Execution entity ID must not be null" },
             workflowName = entity.workflowName,
             workflowVersion = entity.workflowVersion,
             status = entity.status,
@@ -57,7 +57,7 @@ data class TaskResponse(
 ) {
     companion object {
         fun from(entity: TaskEntity) = TaskResponse(
-            id = entity.id!!,
+            id = requireNotNull(entity.id) { "Task entity ID must not be null" },
             executionId = entity.executionId,
             stepName = entity.stepName,
             stepType = entity.stepType,
@@ -107,7 +107,7 @@ data class DeadLetterResponse(
 ) {
     companion object {
         fun from(entity: DeadLetterEntity) = DeadLetterResponse(
-            id = entity.id!!,
+            id = requireNotNull(entity.id) { "Dead letter entity ID must not be null" },
             executionId = entity.executionId,
             taskId = entity.taskId,
             workflowName = entity.workflowName,
@@ -135,7 +135,7 @@ data class WorkerResponse(
 ) {
     companion object {
         fun from(entity: WorkerEntity) = WorkerResponse(
-            id = entity.id!!,
+            id = requireNotNull(entity.id) { "Worker entity ID must not be null" },
             workerId = entity.workerId,
             status = entity.status,
             hostname = entity.hostname,

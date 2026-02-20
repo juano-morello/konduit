@@ -89,7 +89,7 @@ class ExecutionEngine(
 
         // Create execution in PENDING
         val execution = ExecutionEntity(
-            workflowId = workflowEntity.id!!,
+            workflowId = requireNotNull(workflowEntity.id) { "Workflow entity ID must not be null" },
             workflowName = workflowDef.name,
             workflowVersion = workflowDef.version,
             status = ExecutionStatus.PENDING,
@@ -106,7 +106,7 @@ class ExecutionEngine(
 
         // Create the first task
         taskDispatcher.createFirstTask(
-            executionId = savedExecution.id!!,
+            executionId = requireNotNull(savedExecution.id) { "Saved execution ID must not be null" },
             workflowDefinition = workflowDef,
             input = input
         )
@@ -161,7 +161,10 @@ class ExecutionEngine(
 
         // Handle parallel tasks: check fan-in before advancing
         if (task.stepType == StepType.PARALLEL && task.parallelGroup != null) {
-            if (!taskDispatcher.isParallelGroupComplete(execution.id!!, task.parallelGroup!!)) {
+            if (!taskDispatcher.isParallelGroupComplete(
+                    requireNotNull(execution.id) { "Execution ID must not be null" },
+                    requireNotNull(task.parallelGroup) { "Parallel group must not be null for parallel task" }
+                )) {
                 log.info(
                     "Parallel task {} (step '{}', group '{}') completed, but group not yet complete. Waiting for fan-in.",
                     taskId, task.stepName, task.parallelGroup
@@ -174,10 +177,12 @@ class ExecutionEngine(
                 "Fan-in complete for execution {}, parallel group '{}'",
                 execution.id, task.parallelGroup
             )
-            val parallelOutputs = taskDispatcher.collectParallelOutputs(execution.id!!, task.parallelGroup!!)
+            val executionId = requireNotNull(execution.id) { "Execution ID must not be null" }
+            val parallelGroup = requireNotNull(task.parallelGroup) { "Parallel group must not be null for parallel task" }
+            val parallelOutputs = taskDispatcher.collectParallelOutputs(executionId, parallelGroup)
 
             val nextTask = taskDispatcher.dispatchNext(
-                executionId = execution.id!!,
+                executionId = executionId,
                 completedStepName = task.stepName,
                 completedOutput = task.output,
                 workflowDefinition = workflowDef,
@@ -205,19 +210,20 @@ class ExecutionEngine(
         if (task.stepType == StepType.BRANCH && task.branchKey != null) {
             val branchBlock = taskDispatcher.findBranchBlock(workflowDef, task.stepName)
             if (branchBlock != null) {
+                val branchKey = requireNotNull(task.branchKey) { "Branch key must not be null for branch task" }
                 val nextBranchStep = taskDispatcher.findNextBranchStep(
-                    branchBlock, task.branchKey!!, task.stepName
+                    branchBlock, branchKey, task.stepName
                 )
 
                 if (nextBranchStep != null) {
                     // More steps in this branch — dispatch the next one
                     val nextTask = taskDispatcher.dispatchNextBranchStep(
-                        executionId = execution.id!!,
+                        executionId = requireNotNull(execution.id) { "Execution ID must not be null" },
                         nextStep = nextBranchStep,
                         elementIndex = task.stepOrder,
                         input = task.output,
-                        branchBlockName = task.parallelGroup!!,
-                        branchKey = task.branchKey!!
+                        branchBlockName = requireNotNull(task.parallelGroup) { "Parallel group (branch block name) must not be null for branch task" },
+                        branchKey = branchKey
                     )
                     execution.currentStep = nextTask.stepName
                     executionRepository.save(execution)
@@ -234,7 +240,7 @@ class ExecutionEngine(
                     branchBlock.name, task.branchKey, execution.id
                 )
                 val nextTask = taskDispatcher.dispatchNext(
-                    executionId = execution.id!!,
+                    executionId = requireNotNull(execution.id) { "Execution ID must not be null" },
                     completedStepName = task.stepName,
                     completedOutput = task.output,
                     workflowDefinition = workflowDef
@@ -261,7 +267,7 @@ class ExecutionEngine(
 
         // Sequential task: dispatch next element
         val nextTask = taskDispatcher.dispatchNext(
-            executionId = execution.id!!,
+            executionId = requireNotNull(execution.id) { "Execution ID must not be null" },
             completedStepName = task.stepName,
             completedOutput = task.output,
             workflowDefinition = workflowDef
@@ -321,8 +327,11 @@ class ExecutionEngine(
                 taskId, task.stepName, task.parallelGroup
             )
 
+            val executionId = requireNotNull(execution.id) { "Execution ID must not be null" }
+            val parallelGroup = requireNotNull(task.parallelGroup) { "Parallel group must not be null for parallel task" }
+
             // Check if all parallel tasks are now in terminal states
-            if (!taskDispatcher.isParallelGroupComplete(execution.id!!, task.parallelGroup!!)) {
+            if (!taskDispatcher.isParallelGroupComplete(executionId, parallelGroup)) {
                 log.info(
                     "Parallel group '{}' not yet complete after dead letter. Waiting for remaining tasks.",
                     task.parallelGroup
@@ -343,10 +352,10 @@ class ExecutionEngine(
                     "not found in registry for execution ${execution.id}"
             )
 
-            val parallelOutputs = taskDispatcher.collectParallelOutputs(execution.id!!, task.parallelGroup!!)
+            val parallelOutputs = taskDispatcher.collectParallelOutputs(executionId, parallelGroup)
 
             val nextTask = taskDispatcher.dispatchNext(
-                executionId = execution.id!!,
+                executionId = executionId,
                 completedStepName = task.stepName,
                 completedOutput = null,
                 workflowDefinition = workflowDef,

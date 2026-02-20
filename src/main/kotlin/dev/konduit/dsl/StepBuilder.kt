@@ -51,12 +51,12 @@ class StepBuilder(private val name: String) {
     }
 
     fun build(): StepDefinition {
-        requireNotNull(handler) {
+        val resolvedHandler = requireNotNull(handler) {
             "Step '$name' must have a handler defined"
         }
         return StepDefinition(
             name = name,
-            handler = handler!!,
+            handler = resolvedHandler,
             retryPolicy = retryPolicy,
             timeout = timeout
         )

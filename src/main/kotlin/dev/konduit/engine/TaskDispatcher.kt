@@ -244,7 +244,9 @@ class TaskDispatcher(
         // Try to match a branch condition
         val matchedCondition = block.branches.keys.firstOrNull { it == conditionValue }
         val (branchKey, branchSteps) = if (matchedCondition != null) {
-            matchedCondition to block.branches[matchedCondition]!!
+            matchedCondition to requireNotNull(block.branches[matchedCondition]) {
+                "Branch block '${block.name}': matched condition '$matchedCondition' but branch steps are null"
+            }
         } else if (block.otherwise != null) {
             "otherwise" to block.otherwise
         } else {
