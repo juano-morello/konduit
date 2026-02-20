@@ -4,8 +4,8 @@
 spring:
   datasource:
     hikari:
-      maximum-pool-size: 40
-      minimum-idle: 10
+      maximum-pool-size: 50
+      minimum-idle: 15
       connection-timeout: 5000
       validation-timeout: 3000
       leak-detection-threshold: 30000
@@ -23,6 +23,10 @@ spring:
     properties:
       hibernate:
         generate_statistics: false
+        jdbc:
+          batch_size: 10
+        order_updates: true
+        order_inserts: true
 
 logging:
   level:
@@ -35,7 +39,7 @@ konduit:
   worker:
     poll-interval: 200ms
   queue:
-    batch-size: 5
+    batch-size: 10
 
 server:
   tomcat:

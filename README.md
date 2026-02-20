@@ -322,7 +322,7 @@ All configuration properties are under the `konduit.*` prefix in `application.ym
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `concurrency` | `5` | Number of concurrent tasks a single worker can execute |
+| `concurrency` | `10` | Number of concurrent tasks a single worker can execute |
 | `heartbeat-interval` | `10s` | Interval between heartbeat updates |
 | `drain-timeout` | `30s` | Time to wait for in-progress tasks during graceful shutdown |
 | `stale-threshold` | `60s` | Threshold after which a worker is considered stale |
@@ -334,7 +334,7 @@ All configuration properties are under the `konduit.*` prefix in `application.ym
 |----------|---------|-------------|
 | `lock-timeout` | `5m` | Duration after which a locked task is considered orphaned |
 | `reaper-interval` | `30s` | Interval for the orphan reclaimer to check for stuck tasks |
-| `batch-size` | `5` | Maximum number of tasks to acquire in a single poll |
+| `batch-size` | `10` | Maximum number of tasks to acquire in a single poll |
 
 ### Leader Election (`konduit.leader.*`)
 

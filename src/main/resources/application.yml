@@ -7,8 +7,8 @@ spring:
     username: ${DATABASE_USERNAME:konduit}
     password: ${DATABASE_PASSWORD:konduit}
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
+      maximum-pool-size: 30
+      minimum-idle: 10
       connection-timeout: 10000
       validation-timeout: 5000
 
@@ -16,6 +16,12 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 10
+        order_updates: true
+        order_inserts: true
 
   flyway:
     enabled: true
@@ -58,7 +64,7 @@ management:
 # Konduit configuration with defaults
 konduit:
   worker:
-    concurrency: 5
+    concurrency: 10
     heartbeat-interval: 10s
     drain-timeout: 30s
     stale-threshold: 60s
@@ -66,7 +72,7 @@ konduit:
   queue:
     lock-timeout: 5m
     reaper-interval: 30s
-    batch-size: 5
+    batch-size: 10
   redis:
     enabled: true
     channel: "konduit:tasks"

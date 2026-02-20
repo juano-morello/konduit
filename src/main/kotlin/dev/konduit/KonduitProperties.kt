@@ -16,7 +16,7 @@ data class KonduitProperties(
 ) {
     data class WorkerProperties(
         /** Number of concurrent tasks a single worker can execute */
-        val concurrency: Int = 5,
+        val concurrency: Int = 10,
         /** Interval between heartbeat updates */
         val heartbeatInterval: Duration = Duration.ofSeconds(10),
         /** Time to wait for in-progress tasks during graceful shutdown */
@@ -33,7 +33,7 @@ data class KonduitProperties(
         /** Interval for the orphan reclaimer to check for stuck tasks */
         val reaperInterval: Duration = Duration.ofSeconds(30),
         /** Maximum number of tasks to acquire in a single poll */
-        val batchSize: Int = 5
+        val batchSize: Int = 10
     )
 
     data class LeaderProperties(
