@@ -1,6 +1,7 @@
 package dev.konduit.worker
 
 import dev.konduit.KonduitProperties
+import dev.konduit.dsl.ParallelBlock
 import dev.konduit.dsl.StepContext
 import dev.konduit.dsl.WorkflowRegistry
 import dev.konduit.engine.ExecutionAdvancer
@@ -178,6 +179,25 @@ class TaskWorker(
             // Find the step handler
             val stepDef = workflowDef.getStep(task.stepName)
 
+            // Determine if the previous element was a ParallelBlock.
+            // If so, task.input contains the aggregated parallel outputs map.
+            val parallelOutputs = run {
+                val elements = workflowDef.elements
+                val currentElementIndex = elements.indexOfFirst { element ->
+                    when (element) {
+                        is dev.konduit.dsl.StepDefinition -> element.name == task.stepName
+                        is ParallelBlock -> element.steps.any { it.name == task.stepName }
+                        is dev.konduit.dsl.BranchBlock -> element.allSteps().any { it.name == task.stepName }
+                    }
+                }
+                if (currentElementIndex > 0 && elements[currentElementIndex - 1] is ParallelBlock) {
+                    @Suppress("UNCHECKED_CAST")
+                    (task.input as? Map<String, Any?>) ?: emptyMap()
+                } else {
+                    emptyMap()
+                }
+            }
+
             // Build the StepContext
             val context = StepContext(
                 executionId = task.executionId,
@@ -186,7 +206,8 @@ class TaskWorker(
                 executionInput = execution.input,
                 attempt = task.attempt + 1,
                 stepName = task.stepName,
-                workflowName = execution.workflowName
+                workflowName = execution.workflowName,
+                parallelOutputs = parallelOutputs
             )
 
             // Invoke the handler
