@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.core.RedisTemplate
+import org.springframework.data.redis.core.script.DefaultRedisScript
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.util.UUID
@@ -38,6 +39,24 @@ class RedisLeaderElection(
     @Qualifier("konduitRedisTemplate") private val redisTemplate: RedisTemplate<String, String>,
     private val properties: KonduitProperties
 ) : LeaderElectionService {
+
+    companion object {
+        /**
+         * Lua script for atomic lock renewal.
+         * Checks that the current holder matches the expected value before renewing the TTL.
+         * Returns 1 if renewed, 0 if the lock is held by someone else or expired.
+         */
+        private val RENEW_LOCK_SCRIPT = DefaultRedisScript<Long>(
+            """
+            if redis.call("GET", KEYS[1]) == ARGV[1] then
+                return redis.call("PEXPIRE", KEYS[1], ARGV[2])
+            else
+                return 0
+            end
+            """.trimIndent(),
+            Long::class.javaObjectType
+        )
+    }
 
     private val log = LoggerFactory.getLogger(RedisLeaderElection::class.java)
 
@@ -97,14 +116,20 @@ class RedisLeaderElection(
             val lockKey = properties.leader.lockKey
             val ttlMs = properties.leader.lockTtl.toMillis()
 
-            // Verify we still hold the lock before renewing
-            val currentHolder = redisTemplate.opsForValue().get(lockKey)
-            if (currentHolder == workerId) {
-                redisTemplate.expire(lockKey, ttlMs, TimeUnit.MILLISECONDS)
+            // Atomically verify ownership and renew TTL via Lua script
+            val result = redisTemplate.execute(
+                RENEW_LOCK_SCRIPT,
+                listOf(lockKey),
+                workerId,
+                ttlMs.toString()
+            )
+
+            if (result != null && result == 1L) {
                 log.debug("Leader lock renewed: workerId={}, ttl={}ms", workerId, ttlMs)
             } else {
                 // Someone else has the lock or it expired
                 leader.set(false)
+                val currentHolder = redisTemplate.opsForValue().get(lockKey)
                 currentLeaderId.set(currentHolder)
                 log.warn(
                     "Leader lock lost: expected workerId={}, found={}. Relinquishing leadership.",
