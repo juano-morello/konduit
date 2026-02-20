@@ -16,6 +16,8 @@ interface WorkerRepository : JpaRepository<WorkerEntity, UUID> {
 
     fun findByStatus(status: WorkerStatus): List<WorkerEntity>
 
+    fun countByStatus(status: WorkerStatus): Long
+
     /**
      * Find stale workers: ACTIVE workers whose heartbeat is older than the threshold.
      */

@@ -33,6 +33,8 @@ interface ExecutionRepository : JpaRepository<ExecutionEntity, UUID> {
 
     fun countByStatus(status: ExecutionStatus): Long
 
+    fun countByStatusAndCompletedAtAfter(status: ExecutionStatus, after: Instant): Long
+
     @Query(
         value = """
             SELECT * FROM executions

@@ -3,6 +3,8 @@ package dev.konduit.api
 import dev.konduit.api.dto.ExecutionResponse
 import dev.konduit.api.dto.PageResponse
 import dev.konduit.api.dto.TaskResponse
+import dev.konduit.api.dto.TimelineResponse
+import dev.konduit.api.dto.TimelineStepEntry
 import dev.konduit.api.dto.TriggerExecutionRequest
 import dev.konduit.engine.ExecutionEngine
 import dev.konduit.persistence.entity.ExecutionStatus
@@ -96,6 +98,55 @@ class ExecutionController(
         }
         val tasks = taskRepository.findByExecutionIdOrderByStepOrderAsc(id)
         return ResponseEntity.ok(tasks.map { TaskResponse.from(it) })
+    }
+
+    /**
+     * Get the execution timeline with step-level detail.
+     */
+    @GetMapping("/{id}/timeline")
+    fun getExecutionTimeline(@PathVariable id: UUID): ResponseEntity<TimelineResponse> {
+        val execution = executionRepository.findById(id)
+            .orElseThrow { NoSuchElementException("Execution not found: $id") }
+
+        val tasks = taskRepository.findByExecutionIdOrderByStepOrderAsc(id)
+
+        val steps = tasks.map { task ->
+            val stepDuration = if (task.startedAt != null && task.completedAt != null) {
+                java.time.Duration.between(task.startedAt, task.completedAt).toMillis()
+            } else null
+
+            TimelineStepEntry(
+                stepName = task.stepName,
+                stepType = task.stepType.name,
+                status = task.status.name,
+                attempt = task.attempt,
+                maxAttempts = task.maxAttempts,
+                startedAt = task.startedAt,
+                completedAt = task.completedAt,
+                durationMs = stepDuration,
+                error = task.error,
+                parallelGroup = task.parallelGroup,
+                branchKey = task.branchKey,
+                input = task.input,
+                output = task.output
+            )
+        }
+
+        val executionDuration = if (execution.startedAt != null && execution.completedAt != null) {
+            java.time.Duration.between(execution.startedAt, execution.completedAt).toMillis()
+        } else null
+
+        val timeline = TimelineResponse(
+            executionId = execution.id!!,
+            workflowName = execution.workflowName,
+            status = execution.status.name,
+            startedAt = execution.startedAt,
+            completedAt = execution.completedAt,
+            durationMs = executionDuration,
+            steps = steps
+        )
+
+        return ResponseEntity.ok(timeline)
     }
 
     /**

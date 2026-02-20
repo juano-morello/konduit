@@ -80,6 +80,8 @@ interface TaskRepository : JpaRepository<TaskEntity, UUID> {
 
     fun countByStatus(status: TaskStatus): Long
 
+    fun countByStatusAndCompletedAtAfter(status: TaskStatus, after: Instant): Long
+
     /**
      * Find tasks currently locked by a specific worker.
      * Used during stale worker detection and graceful shutdown to reclaim tasks.
