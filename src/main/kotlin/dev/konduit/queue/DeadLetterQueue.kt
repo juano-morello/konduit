@@ -20,7 +20,7 @@ import java.util.UUID
  * Preserves full error history as JSONB for debugging and supports
  * reprocessing (creating a fresh task from a dead-lettered one).
  *
- * See PRD §6.2 for dead letter lifecycle.
+ * Tasks that exhaust retries are dead-lettered with full error history and can be reprocessed via the API.
  */
 @Component
 class DeadLetterQueue(
@@ -28,7 +28,7 @@ class DeadLetterQueue(
     private val taskRepository: TaskRepository,
     private val executionRepository: ExecutionRepository
 ) {
-    private val logger = LoggerFactory.getLogger(DeadLetterQueue::class.java)
+    private val log = LoggerFactory.getLogger(DeadLetterQueue::class.java)
 
     @Autowired(required = false)
     private var metricsService: MetricsService? = null
@@ -48,7 +48,7 @@ class DeadLetterQueue(
         val workflowName = execution?.workflowName ?: "unknown"
 
         val deadLetter = DeadLetterEntity(
-            taskId = task.id!!,
+            taskId = requireNotNull(task.id) { "Task ID must not be null when dead-lettering" },
             executionId = task.executionId,
             workflowName = workflowName,
             stepName = task.stepName,
@@ -63,7 +63,7 @@ class DeadLetterQueue(
         // Record dead letter metric
         metricsService?.recordDeadLetter(workflowName, task.stepName)
 
-        logger.warn(
+        log.warn(
             "Task dead-lettered: taskId={}, stepName={}, workflow={}, attempts={}",
             task.id, task.stepName, workflowName, task.attempt
         )
@@ -116,7 +116,7 @@ class DeadLetterQueue(
         deadLetter.reprocessedAt = Instant.now()
         deadLetterRepository.save(deadLetter)
 
-        logger.info(
+        log.info(
             "Dead letter reprocessed: deadLetterId={}, newTaskId={}, stepName={}",
             deadLetterId, savedTask.id, savedTask.stepName
         )
@@ -139,13 +139,15 @@ class DeadLetterQueue(
         )
 
         if (deadLetters.isEmpty()) {
-            logger.info("No dead letters found matching filter: {}", filter)
+            log.info("No dead letters found matching filter: {}", filter)
             return emptyList()
         }
 
-        val reprocessedTasks = deadLetters.map { dl -> reprocess(dl.id!!) }
+        val reprocessedTasks = deadLetters.map { dl ->
+            reprocess(requireNotNull(dl.id) { "Dead letter ID must not be null for reprocessing" })
+        }
 
-        logger.info(
+        log.info(
             "Batch reprocessed {} dead letters matching filter: {}",
             reprocessedTasks.size, filter
         )

@@ -136,7 +136,7 @@ class ExecutionController(
         } else null
 
         val timeline = TimelineResponse(
-            executionId = execution.id!!,
+            executionId = requireNotNull(execution.id) { "Execution ID must not be null" },
             workflowName = execution.workflowName,
             status = execution.status.name,
             startedAt = execution.startedAt,
