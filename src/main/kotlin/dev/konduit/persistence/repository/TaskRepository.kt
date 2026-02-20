@@ -77,5 +77,7 @@ interface TaskRepository : JpaRepository<TaskEntity, UUID> {
     ): Long
 
     fun countByExecutionIdAndParallelGroup(executionId: UUID, parallelGroup: String): Long
+
+    fun countByStatus(status: TaskStatus): Long
 }
 

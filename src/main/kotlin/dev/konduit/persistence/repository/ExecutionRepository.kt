@@ -25,11 +25,19 @@ interface ExecutionRepository : JpaRepository<ExecutionEntity, UUID> {
     @Query("SELECT e FROM ExecutionEntity e WHERE e.status IN :statuses ORDER BY e.createdAt DESC")
     fun findByStatusIn(@Param("statuses") statuses: List<ExecutionStatus>, pageable: Pageable): Page<ExecutionEntity>
 
+    fun findByStatusAndWorkflowName(
+        status: ExecutionStatus,
+        workflowName: String,
+        pageable: Pageable
+    ): Page<ExecutionEntity>
+
+    fun countByStatus(status: ExecutionStatus): Long
+
     @Query(
         value = """
-            SELECT * FROM executions 
-            WHERE status = 'RUNNING' 
-              AND timeout_at IS NOT NULL 
+            SELECT * FROM executions
+            WHERE status = 'RUNNING'
+              AND timeout_at IS NOT NULL
               AND timeout_at <= :now
         """,
         nativeQuery = true
