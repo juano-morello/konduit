@@ -71,19 +71,21 @@ class TaskQueue(
         val now = Instant.now()
         val lockTimeout = properties.queue.lockTimeout
 
-        val lockedTasks = tasks.map { task ->
+        tasks.forEach { task ->
             task.status = TaskStatus.LOCKED
             task.lockedBy = workerId
             task.lockedAt = now
             task.lockTimeoutAt = now.plus(lockTimeout)
 
-            log.info(
+            log.debug(
                 "Task acquired: taskId={}, stepName={}, workerId={}, lockTimeout={}",
                 task.id, task.stepName, workerId, lockTimeout
             )
-
-            taskRepository.save(task)
         }
+
+        val lockedTasks = taskRepository.saveAll(tasks)
+
+        log.info("Acquired {} tasks for worker {}", lockedTasks.size, workerId)
 
         // Record acquisition duration
         metricsService?.recordTaskAcquisitionDuration(Duration.between(acquireStart, Instant.now()))
@@ -114,7 +116,7 @@ class TaskQueue(
 
         taskRepository.save(task)
 
-        log.info("Task completed: taskId={}, stepName={}", taskId, task.stepName)
+        log.debug("Task completed: taskId={}, stepName={}", taskId, task.stepName)
     }
 
     /**
