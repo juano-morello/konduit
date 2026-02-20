@@ -1,5 +1,6 @@
 package dev.konduit.queue
 
+import dev.konduit.observability.MetricsService
 import dev.konduit.persistence.entity.DeadLetterEntity
 import dev.konduit.persistence.entity.TaskEntity
 import dev.konduit.persistence.entity.TaskStatus
@@ -7,6 +8,7 @@ import dev.konduit.persistence.repository.DeadLetterRepository
 import dev.konduit.persistence.repository.ExecutionRepository
 import dev.konduit.persistence.repository.TaskRepository
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -27,6 +29,9 @@ class DeadLetterQueue(
     private val executionRepository: ExecutionRepository
 ) {
     private val logger = LoggerFactory.getLogger(DeadLetterQueue::class.java)
+
+    @Autowired(required = false)
+    private var metricsService: MetricsService? = null
 
     /**
      * Move a failed task to the dead letter queue with full error history.
@@ -54,6 +59,9 @@ class DeadLetterQueue(
         )
 
         deadLetterRepository.save(deadLetter)
+
+        // Record dead letter metric
+        metricsService?.recordDeadLetter(workflowName, task.stepName)
 
         logger.warn(
             "Task dead-lettered: taskId={}, stepName={}, workflow={}, attempts={}",

@@ -1,6 +1,7 @@
 package dev.konduit.engine
 
 import dev.konduit.dsl.WorkflowRegistry
+import dev.konduit.observability.MetricsService
 import dev.konduit.persistence.entity.ExecutionEntity
 import dev.konduit.persistence.entity.ExecutionStatus
 import dev.konduit.persistence.entity.StepType
@@ -8,8 +9,11 @@ import dev.konduit.persistence.repository.ExecutionRepository
 import dev.konduit.persistence.repository.TaskRepository
 import dev.konduit.persistence.repository.WorkflowRepository
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -33,6 +37,9 @@ class ExecutionEngine(
     private val stateMachine: ExecutionStateMachine,
     private val taskDispatcher: TaskDispatcher
 ) : ExecutionAdvancer {
+
+    @Autowired(required = false)
+    private var metricsService: MetricsService? = null
 
     private val log = LoggerFactory.getLogger(ExecutionEngine::class.java)
 
@@ -106,7 +113,11 @@ class ExecutionEngine(
 
         // Transition to RUNNING
         stateMachine.transition(savedExecution, ExecutionStatus.RUNNING)
+        savedExecution.startedAt = Instant.now()
         executionRepository.save(savedExecution)
+
+        // Record metrics
+        metricsService?.recordExecutionStarted(workflowDef.name)
 
         log.info("Execution {} is now RUNNING", savedExecution.id)
         return savedExecution
@@ -184,6 +195,7 @@ class ExecutionEngine(
                 execution.currentStep = null
                 stateMachine.transition(execution, ExecutionStatus.COMPLETED)
                 executionRepository.save(execution)
+                recordExecutionCompletion(execution)
                 log.info("Execution {} completed successfully after parallel block", execution.id)
             }
             return
@@ -240,6 +252,7 @@ class ExecutionEngine(
                     execution.currentStep = null
                     stateMachine.transition(execution, ExecutionStatus.COMPLETED)
                     executionRepository.save(execution)
+                    recordExecutionCompletion(execution)
                     log.info("Execution {} completed successfully after branch block", execution.id)
                 }
                 return
@@ -268,6 +281,7 @@ class ExecutionEngine(
             execution.currentStep = null
             stateMachine.transition(execution, ExecutionStatus.COMPLETED)
             executionRepository.save(execution)
+            recordExecutionCompletion(execution)
             log.info("Execution {} completed successfully", execution.id)
         }
     }
@@ -353,6 +367,7 @@ class ExecutionEngine(
                 execution.currentStep = null
                 stateMachine.transition(execution, ExecutionStatus.COMPLETED)
                 executionRepository.save(execution)
+                recordExecutionCompletion(execution)
                 log.info(
                     "Execution {} completed (with partial parallel failures) after parallel block",
                     execution.id
@@ -368,6 +383,7 @@ class ExecutionEngine(
             execution.currentStep = task.stepName
             stateMachine.transition(execution, ExecutionStatus.FAILED)
             executionRepository.save(execution)
+            recordExecutionFailure(execution)
 
             log.warn(
                 "Execution {} FAILED: branch task {} (step '{}', branch '{}', key '{}') dead-lettered",
@@ -381,6 +397,7 @@ class ExecutionEngine(
         execution.currentStep = task.stepName
         stateMachine.transition(execution, ExecutionStatus.FAILED)
         executionRepository.save(execution)
+        recordExecutionFailure(execution)
 
         log.warn(
             "Execution {} FAILED: task {} (step '{}') dead-lettered",
@@ -408,8 +425,24 @@ class ExecutionEngine(
         stateMachine.transition(execution, ExecutionStatus.CANCELLED)
         executionRepository.save(execution)
 
+        metricsService?.recordExecutionCancelled(execution.workflowName)
+
         log.info("Execution {} cancelled", executionId)
         return execution
+    }
+
+    private fun recordExecutionCompletion(execution: ExecutionEntity) {
+        val duration = if (execution.startedAt != null) {
+            Duration.between(execution.startedAt, Instant.now())
+        } else null
+        metricsService?.recordExecutionCompleted(execution.workflowName, duration ?: Duration.ZERO)
+    }
+
+    private fun recordExecutionFailure(execution: ExecutionEntity) {
+        val duration = if (execution.startedAt != null) {
+            Duration.between(execution.startedAt, Instant.now())
+        } else null
+        metricsService?.recordExecutionFailed(execution.workflowName, duration)
     }
 }
 

@@ -4,6 +4,8 @@ import dev.konduit.KonduitProperties
 import dev.konduit.dsl.StepContext
 import dev.konduit.dsl.WorkflowRegistry
 import dev.konduit.engine.ExecutionAdvancer
+import dev.konduit.observability.CorrelationFilter
+import dev.konduit.observability.MetricsService
 import dev.konduit.persistence.entity.TaskEntity
 import dev.konduit.persistence.entity.TaskStatus
 import dev.konduit.persistence.entity.WorkerStatus
@@ -13,11 +15,13 @@ import dev.konduit.queue.TaskQueue
 import dev.konduit.retry.RetryPolicy
 import jakarta.annotation.PreDestroy
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
 import java.net.InetAddress
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Executors
@@ -51,6 +55,9 @@ class TaskWorker(
     private val properties: KonduitProperties
 ) {
     private val log = LoggerFactory.getLogger(TaskWorker::class.java)
+
+    @Autowired(required = false)
+    private var metricsService: MetricsService? = null
 
     /** Thread pool for executing tasks concurrently. */
     private lateinit var taskExecutor: java.util.concurrent.ExecutorService
@@ -138,12 +145,13 @@ class TaskWorker(
     private fun executeTask(task: TaskEntity) {
         val taskId = task.id!!
         val workerId = taskWorkerState.workerId!!
+        val taskStartTime = Instant.now()
 
         log.info("Executing task {}: step '{}', attempt {}", taskId, task.stepName, task.attempt + 1)
 
         // Mark task as RUNNING
         task.status = TaskStatus.RUNNING
-        task.startedAt = Instant.now()
+        task.startedAt = taskStartTime
         taskRepository.save(task)
 
         try {
@@ -151,6 +159,15 @@ class TaskWorker(
             val execution = executionRepository.findById(task.executionId).orElseThrow {
                 IllegalStateException("Execution ${task.executionId} not found for task $taskId")
             }
+
+            // Set MDC context for structured logging
+            CorrelationFilter.setTaskContext(
+                executionId = task.executionId,
+                taskId = taskId,
+                workerId = workerId,
+                stepName = task.stepName,
+                workflowName = execution.workflowName
+            )
 
             val workflowDef = workflowRegistry.findByNameAndVersion(
                 execution.workflowName, execution.workflowVersion
@@ -187,6 +204,10 @@ class TaskWorker(
             taskQueue.completeTask(taskId, outputMap)
             executionAdvancer.onTaskCompleted(taskId)
 
+            // Record task completion metrics
+            val duration = Duration.between(taskStartTime, Instant.now())
+            metricsService?.recordTaskCompleted(execution.workflowName, task.stepName, duration)
+
             log.info("Task {} completed successfully: step '{}'", taskId, task.stepName)
         } catch (e: Exception) {
             log.error("Task {} failed: step '{}', error: {}", taskId, task.stepName, e.message, e)
@@ -200,11 +221,25 @@ class TaskWorker(
 
             taskQueue.failTask(taskId, e.message ?: "Unknown error", retryPolicy)
 
+            // Record task failure metrics
+            val duration = Duration.between(taskStartTime, Instant.now())
+            val workflowName = try {
+                executionRepository.findById(task.executionId).orElse(null)?.workflowName ?: "unknown"
+            } catch (_: Exception) { "unknown" }
+            metricsService?.recordTaskFailed(workflowName, task.stepName, duration)
+
             // If the task was dead-lettered (exhausted retries), notify the engine
             val updatedTask = taskRepository.findById(taskId).orElse(null)
             if (updatedTask != null && updatedTask.status == TaskStatus.DEAD_LETTER) {
+                metricsService?.recordTaskRetry(workflowName, task.stepName)
                 executionAdvancer.onTaskDeadLettered(taskId)
+            } else if (updatedTask != null && updatedTask.status == TaskStatus.PENDING) {
+                // Task was retried (not dead-lettered)
+                metricsService?.recordTaskRetry(workflowName, task.stepName)
             }
+        } finally {
+            // Clear MDC context after task processing
+            CorrelationFilter.clearTaskContext()
         }
     }
 

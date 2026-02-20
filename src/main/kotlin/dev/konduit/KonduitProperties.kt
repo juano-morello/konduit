@@ -10,7 +10,9 @@ data class KonduitProperties(
     val leader: LeaderProperties = LeaderProperties(),
     val execution: ExecutionProperties = ExecutionProperties(),
     val retry: RetryDefaults = RetryDefaults(),
-    val redis: RedisProperties = RedisProperties()
+    val redis: RedisProperties = RedisProperties(),
+    val metrics: MetricsProperties = MetricsProperties(),
+    val logging: LoggingProperties = LoggingProperties()
 ) {
     data class WorkerProperties(
         /** Number of concurrent tasks a single worker can execute */
@@ -66,6 +68,16 @@ data class KonduitProperties(
         val maxDelay: Duration = Duration.ofMinutes(5),
         /** Default backoff multiplier */
         val multiplier: Double = 2.0
+    )
+
+    data class MetricsProperties(
+        /** Whether Prometheus metrics collection is enabled */
+        val enabled: Boolean = true
+    )
+
+    data class LoggingProperties(
+        /** Whether to include request/response payloads in log output */
+        val includePayload: Boolean = false
     )
 }
 

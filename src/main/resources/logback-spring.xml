@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Console appender for dev/test profiles -->
+    <springProfile name="default,dev,test">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - [%X{correlation_id}] [%X{execution_id}] [%X{task_id}] %msg%n</pattern>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE" />
+        </root>
+    </springProfile>
+
+    <!-- JSON appender for production profile -->
+    <springProfile name="production">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>correlation_id</includeMdcKeyName>
+                <includeMdcKeyName>execution_id</includeMdcKeyName>
+                <includeMdcKeyName>task_id</includeMdcKeyName>
+                <includeMdcKeyName>worker_id</includeMdcKeyName>
+                <includeMdcKeyName>step_name</includeMdcKeyName>
+                <includeMdcKeyName>workflow_name</includeMdcKeyName>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="JSON" />
+        </root>
+    </springProfile>
+
+</configuration>
+

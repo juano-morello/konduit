@@ -50,6 +50,10 @@ konduit:
     initial-delay: 100ms
     max-delay: 1s
     multiplier: 2.0
+  metrics:
+    enabled: false
+  logging:
+    include-payload: false
 
 logging:
   level:

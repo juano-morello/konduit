@@ -1,14 +1,17 @@
 package dev.konduit.queue
 
 import dev.konduit.KonduitProperties
+import dev.konduit.observability.MetricsService
 import dev.konduit.persistence.entity.TaskEntity
 import dev.konduit.persistence.entity.TaskStatus
 import dev.konduit.persistence.repository.TaskRepository
 import dev.konduit.retry.RetryCalculator
 import dev.konduit.retry.RetryPolicy
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 
@@ -28,6 +31,9 @@ class TaskQueue(
 ) {
     private val logger = LoggerFactory.getLogger(TaskQueue::class.java)
 
+    @Autowired(required = false)
+    private var metricsService: MetricsService? = null
+
     /**
      * Acquire a single PENDING task for the given worker.
      *
@@ -40,6 +46,7 @@ class TaskQueue(
      */
     @Transactional
     fun acquireTask(workerId: String): TaskEntity? {
+        val acquireStart = Instant.now()
         val tasks = taskRepository.acquireTasks(1)
         if (tasks.isEmpty()) {
             return null
@@ -59,7 +66,12 @@ class TaskQueue(
             task.id, task.stepName, workerId, lockTimeout
         )
 
-        return taskRepository.save(task)
+        val saved = taskRepository.save(task)
+
+        // Record acquisition duration
+        metricsService?.recordTaskAcquisitionDuration(Duration.between(acquireStart, Instant.now()))
+
+        return saved
     }
 
     /**
