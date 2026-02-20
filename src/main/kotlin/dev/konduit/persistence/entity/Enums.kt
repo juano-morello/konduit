@@ -48,13 +48,5 @@ enum class StepType {
     BRANCH
 }
 
-/**
- * Backoff strategies for task retry.
- * Stored as VARCHAR in the tasks table.
- */
-enum class BackoffStrategy {
-    EXPONENTIAL,
-    LINEAR,
-    FIXED
-}
+
 

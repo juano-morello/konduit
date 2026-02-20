@@ -52,13 +52,7 @@ class WorkflowController(
             steps = definition.steps.map { step ->
                 StepSummary(
                     name = step.name,
-                    retryPolicy = mapOf(
-                        "maxAttempts" to step.retryPolicy.maxAttempts,
-                        "backoffStrategy" to step.retryPolicy.backoffStrategy.name,
-                        "baseDelayMs" to step.retryPolicy.baseDelayMs,
-                        "maxDelayMs" to step.retryPolicy.maxDelayMs,
-                        "jitter" to step.retryPolicy.jitter
-                    ),
+                    retryPolicy = step.retryPolicy.toMap(),
                     timeoutMs = step.timeout?.toMillis()
                 )
             },

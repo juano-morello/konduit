@@ -25,13 +25,7 @@ data class StepDefinition(
      */
     fun toSerializable(): Map<String, Any?> = buildMap {
         put("name", name)
-        put("retryPolicy", mapOf(
-            "maxAttempts" to retryPolicy.maxAttempts,
-            "backoffStrategy" to retryPolicy.backoffStrategy.name,
-            "baseDelayMs" to retryPolicy.baseDelayMs,
-            "maxDelayMs" to retryPolicy.maxDelayMs,
-            "jitter" to retryPolicy.jitter
-        ))
+        put("retryPolicy", retryPolicy.toMap())
         timeout?.let { put("timeoutMs", it.toMillis()) }
     }
 }

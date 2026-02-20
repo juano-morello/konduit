@@ -71,7 +71,7 @@ class SkipLockedConcurrencyTest : IntegrationTestBase() {
                     status = TaskStatus.PENDING,
                     input = mapOf("task" to i),
                     maxAttempts = 3,
-                    backoffStrategy = dev.konduit.persistence.entity.BackoffStrategy.FIXED,
+                    backoffStrategy = dev.konduit.retry.BackoffStrategy.FIXED,
                     backoffBaseMs = 100
                 )
             ).id!!

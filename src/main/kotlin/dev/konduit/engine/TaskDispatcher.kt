@@ -6,7 +6,6 @@ import dev.konduit.dsl.ParallelBlock
 import dev.konduit.dsl.StepDefinition
 import dev.konduit.dsl.WorkflowDefinition
 import dev.konduit.dsl.WorkflowElement
-import dev.konduit.persistence.entity.BackoffStrategy
 import dev.konduit.persistence.entity.StepType
 import dev.konduit.persistence.entity.TaskEntity
 import dev.konduit.persistence.entity.TaskStatus
@@ -182,7 +181,7 @@ class TaskDispatcher(
             status = TaskStatus.PENDING,
             input = input,
             maxAttempts = step.retryPolicy.maxAttempts,
-            backoffStrategy = mapBackoffStrategy(step.retryPolicy.backoffStrategy),
+            backoffStrategy = step.retryPolicy.backoffStrategy,
             backoffBaseMs = step.retryPolicy.baseDelayMs
         )
 
@@ -215,7 +214,7 @@ class TaskDispatcher(
                 input = input,
                 parallelGroup = block.name,
                 maxAttempts = step.retryPolicy.maxAttempts,
-                backoffStrategy = mapBackoffStrategy(step.retryPolicy.backoffStrategy),
+                backoffStrategy = step.retryPolicy.backoffStrategy,
                 backoffBaseMs = step.retryPolicy.baseDelayMs
             )
         }
@@ -297,7 +296,7 @@ class TaskDispatcher(
             branchKey = branchKey,
             parallelGroup = branchBlockName,
             maxAttempts = step.retryPolicy.maxAttempts,
-            backoffStrategy = mapBackoffStrategy(step.retryPolicy.backoffStrategy),
+            backoffStrategy = step.retryPolicy.backoffStrategy,
             backoffBaseMs = step.retryPolicy.baseDelayMs
         )
 
@@ -371,17 +370,5 @@ class TaskDispatcher(
         }
     }
 
-    /**
-     * Map from the retry module's BackoffStrategy to the entity's BackoffStrategy.
-     */
-    private fun mapBackoffStrategy(
-        strategy: dev.konduit.retry.BackoffStrategy
-    ): BackoffStrategy {
-        return when (strategy) {
-            dev.konduit.retry.BackoffStrategy.FIXED -> BackoffStrategy.FIXED
-            dev.konduit.retry.BackoffStrategy.LINEAR -> BackoffStrategy.LINEAR
-            dev.konduit.retry.BackoffStrategy.EXPONENTIAL -> BackoffStrategy.EXPONENTIAL
-        }
-    }
 }
 

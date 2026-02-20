@@ -68,7 +68,7 @@ class TaskQueueIntegrationTest : IntegrationTestBase() {
                 status = TaskStatus.PENDING,
                 input = mapOf("key" to "value"),
                 maxAttempts = 3,
-                backoffStrategy = dev.konduit.persistence.entity.BackoffStrategy.FIXED,
+                backoffStrategy = dev.konduit.retry.BackoffStrategy.FIXED,
                 backoffBaseMs = 100
             )
         )

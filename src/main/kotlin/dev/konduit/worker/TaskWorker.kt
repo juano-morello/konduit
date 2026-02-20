@@ -236,7 +236,7 @@ class TaskWorker(
             // Build retry policy from task entity fields
             val retryPolicy = RetryPolicy(
                 maxAttempts = task.maxAttempts,
-                backoffStrategy = mapBackoffStrategy(task.backoffStrategy),
+                backoffStrategy = task.backoffStrategy,
                 baseDelayMs = task.backoffBaseMs
             )
 
@@ -264,18 +264,6 @@ class TaskWorker(
         }
     }
 
-    /**
-     * Map from entity BackoffStrategy to retry module BackoffStrategy.
-     */
-    private fun mapBackoffStrategy(
-        strategy: dev.konduit.persistence.entity.BackoffStrategy
-    ): dev.konduit.retry.BackoffStrategy {
-        return when (strategy) {
-            dev.konduit.persistence.entity.BackoffStrategy.FIXED -> dev.konduit.retry.BackoffStrategy.FIXED
-            dev.konduit.persistence.entity.BackoffStrategy.LINEAR -> dev.konduit.retry.BackoffStrategy.LINEAR
-            dev.konduit.persistence.entity.BackoffStrategy.EXPONENTIAL -> dev.konduit.retry.BackoffStrategy.EXPONENTIAL
-        }
-    }
 
     /**
      * Graceful shutdown (PRD §7.3).

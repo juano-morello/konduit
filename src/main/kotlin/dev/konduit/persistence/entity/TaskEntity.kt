@@ -1,5 +1,6 @@
 package dev.konduit.persistence.entity
 
+import dev.konduit.retry.BackoffStrategy
 import jakarta.persistence.*
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
@@ -7,7 +8,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * JPA entity mapping to the 'tasks' table (PRD §3.4.3).
+ * JPA entity mapping to the 'tasks' table.
  * The task queue: each row is a unit of work. Workers acquire tasks via SKIP LOCKED.
  */
 @Entity

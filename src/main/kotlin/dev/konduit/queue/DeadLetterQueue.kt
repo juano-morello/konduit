@@ -102,7 +102,7 @@ class DeadLetterQueue(
             attempt = 0,
             maxAttempts = originalTask?.maxAttempts ?: 3,
             backoffStrategy = originalTask?.backoffStrategy
-                ?: dev.konduit.persistence.entity.BackoffStrategy.EXPONENTIAL,
+                ?: dev.konduit.retry.BackoffStrategy.EXPONENTIAL,
             backoffBaseMs = originalTask?.backoffBaseMs ?: 1000L,
             parentTaskId = originalTask?.parentTaskId,
             parallelGroup = originalTask?.parallelGroup,
