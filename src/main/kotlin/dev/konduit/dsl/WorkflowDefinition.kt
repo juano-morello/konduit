@@ -23,6 +23,7 @@ data class WorkflowDefinition(
             when (element) {
                 is StepDefinition -> listOf(element)
                 is ParallelBlock -> element.steps
+                is BranchBlock -> element.allSteps()
             }
         }
 
@@ -59,6 +60,7 @@ data class WorkflowDefinition(
             when (element) {
                 is StepDefinition -> element.toSerializable()
                 is ParallelBlock -> element.toSerializable()
+                is BranchBlock -> element.toSerializable()
             }
         }
 

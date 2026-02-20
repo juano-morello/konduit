@@ -1,5 +1,6 @@
 package dev.konduit.engine
 
+import dev.konduit.dsl.BranchBlock
 import dev.konduit.dsl.ParallelBlock
 import dev.konduit.dsl.StepDefinition
 import dev.konduit.dsl.WorkflowDefinition
@@ -51,6 +52,16 @@ class TaskDispatcher(
             is ParallelBlock -> {
                 val tasks = createParallelTasks(executionId, firstElement, 0, input)
                 tasks.first()
+            }
+            is BranchBlock -> {
+                // A branch as the first element has no previous output to evaluate.
+                // Use otherwise if available, else fail.
+                val branchSteps = firstElement.otherwise
+                    ?: throw IllegalStateException(
+                        "Branch block '${firstElement.name}' is the first element but has no previous " +
+                            "output to evaluate. An 'otherwise' branch is required."
+                    )
+                createBranchTask(executionId, branchSteps.first(), 0, input, firstElement.name, "otherwise")
             }
         }
     }
@@ -112,6 +123,9 @@ class TaskDispatcher(
             is ParallelBlock -> {
                 val tasks = createParallelTasks(executionId, nextElement, nextIndex, nextInput)
                 tasks.first()
+            }
+            is BranchBlock -> {
+                evaluateAndDispatchBranch(executionId, nextElement, nextIndex, nextInput)
             }
         }
     }
@@ -213,6 +227,133 @@ class TaskDispatcher(
     }
 
     /**
+     * Evaluate branch conditions against the completed output and dispatch
+     * the first task of the matching branch.
+     */
+    private fun evaluateAndDispatchBranch(
+        executionId: UUID,
+        block: BranchBlock,
+        elementIndex: Int,
+        input: Map<String, Any>?
+    ): TaskEntity {
+        val conditionValue = extractBranchCondition(input)
+
+        // Try to match a branch condition
+        val matchedCondition = block.branches.keys.firstOrNull { it == conditionValue }
+        val (branchKey, branchSteps) = if (matchedCondition != null) {
+            matchedCondition to block.branches[matchedCondition]!!
+        } else if (block.otherwise != null) {
+            "otherwise" to block.otherwise
+        } else {
+            throw IllegalStateException(
+                "Branch block '${block.name}': no branch matched condition '$conditionValue' " +
+                    "and no 'otherwise' branch defined. Available conditions: ${block.branches.keys}"
+            )
+        }
+
+        log.info(
+            "Branch '{}' evaluated: condition='{}', matched branch='{}', {} step(s)",
+            block.name, conditionValue, branchKey, branchSteps.size
+        )
+
+        return createBranchTask(executionId, branchSteps.first(), elementIndex, input, block.name, branchKey)
+    }
+
+    /**
+     * Extract the branch condition string from the previous step's output.
+     * Checks for a "result" or "branch" key in the output map first,
+     * then falls back to toString().
+     */
+    private fun extractBranchCondition(output: Map<String, Any>?): String {
+        if (output == null) return ""
+        // Check for well-known keys
+        val result = output["result"] ?: output["branch"]
+        if (result != null) return result.toString()
+        return output.toString()
+    }
+
+    /**
+     * Create a single branch task.
+     */
+    private fun createBranchTask(
+        executionId: UUID,
+        step: StepDefinition,
+        elementIndex: Int,
+        input: Map<String, Any>?,
+        branchBlockName: String,
+        branchKey: String
+    ): TaskEntity {
+        val task = TaskEntity(
+            executionId = executionId,
+            stepName = step.name,
+            stepType = StepType.BRANCH,
+            stepOrder = elementIndex,
+            status = TaskStatus.PENDING,
+            input = input,
+            branchKey = branchKey,
+            parallelGroup = branchBlockName,
+            maxAttempts = step.retryPolicy.maxAttempts,
+            backoffStrategy = mapBackoffStrategy(step.retryPolicy.backoffStrategy),
+            backoffBaseMs = step.retryPolicy.baseDelayMs
+        )
+
+        val saved = taskRepository.save(task)
+        log.info(
+            "Created branch task {} for execution {}, step '{}' (branch '{}', key '{}', element {})",
+            saved.id, executionId, step.name, branchBlockName, branchKey, elementIndex
+        )
+        return saved
+    }
+
+    /**
+     * Find the next step within a branch after the given step name completes.
+     *
+     * @return The next StepDefinition in the branch, or null if the completed step was the last.
+     */
+    fun findNextBranchStep(
+        branchBlock: BranchBlock,
+        branchKey: String,
+        completedStepName: String
+    ): StepDefinition? {
+        val branchSteps = if (branchKey == "otherwise") {
+            branchBlock.otherwise ?: return null
+        } else {
+            branchBlock.branches[branchKey] ?: return null
+        }
+
+        val currentIndex = branchSteps.indexOfFirst { it.name == completedStepName }
+        if (currentIndex == -1 || currentIndex + 1 >= branchSteps.size) return null
+        return branchSteps[currentIndex + 1]
+    }
+
+    /**
+     * Dispatch the next step within a multi-step branch.
+     * Called by ExecutionEngine when a branch task completes and there are more steps.
+     */
+    fun dispatchNextBranchStep(
+        executionId: UUID,
+        nextStep: StepDefinition,
+        elementIndex: Int,
+        input: Map<String, Any>?,
+        branchBlockName: String,
+        branchKey: String
+    ): TaskEntity {
+        return createBranchTask(executionId, nextStep, elementIndex, input, branchBlockName, branchKey)
+    }
+
+    /**
+     * Find the BranchBlock element that contains the given step name.
+     */
+    fun findBranchBlock(
+        workflowDefinition: WorkflowDefinition,
+        stepName: String
+    ): BranchBlock? {
+        return workflowDefinition.elements.filterIsInstance<BranchBlock>().firstOrNull { block ->
+            block.allSteps().any { it.name == stepName }
+        }
+    }
+
+    /**
      * Find the element index that contains the given step name.
      */
     private fun findElementIndex(elements: List<WorkflowElement>, stepName: String): Int {
@@ -220,6 +361,7 @@ class TaskDispatcher(
             when (element) {
                 is StepDefinition -> element.name == stepName
                 is ParallelBlock -> element.steps.any { it.name == stepName }
+                is BranchBlock -> element.allSteps().any { it.name == stepName }
             }
         }
     }

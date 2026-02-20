@@ -189,6 +189,63 @@ class ExecutionEngine(
             return
         }
 
+        // Handle branch tasks: check if there are more steps in the same branch
+        if (task.stepType == StepType.BRANCH && task.branchKey != null) {
+            val branchBlock = taskDispatcher.findBranchBlock(workflowDef, task.stepName)
+            if (branchBlock != null) {
+                val nextBranchStep = taskDispatcher.findNextBranchStep(
+                    branchBlock, task.branchKey!!, task.stepName
+                )
+
+                if (nextBranchStep != null) {
+                    // More steps in this branch — dispatch the next one
+                    val nextTask = taskDispatcher.dispatchNextBranchStep(
+                        executionId = execution.id!!,
+                        nextStep = nextBranchStep,
+                        elementIndex = task.stepOrder,
+                        input = task.output,
+                        branchBlockName = task.parallelGroup!!,
+                        branchKey = task.branchKey!!
+                    )
+                    execution.currentStep = nextTask.stepName
+                    executionRepository.save(execution)
+                    log.info(
+                        "Execution {} advanced to next branch step '{}' (branch '{}', key '{}')",
+                        execution.id, nextTask.stepName, branchBlock.name, task.branchKey
+                    )
+                    return
+                }
+
+                // Last step in branch — advance to next workflow element
+                log.info(
+                    "Branch '{}' (key '{}') completed for execution {}",
+                    branchBlock.name, task.branchKey, execution.id
+                )
+                val nextTask = taskDispatcher.dispatchNext(
+                    executionId = execution.id!!,
+                    completedStepName = task.stepName,
+                    completedOutput = task.output,
+                    workflowDefinition = workflowDef
+                )
+
+                if (nextTask != null) {
+                    execution.currentStep = nextTask.stepName
+                    executionRepository.save(execution)
+                    log.info(
+                        "Execution {} advanced past branch block to step '{}'",
+                        execution.id, nextTask.stepName
+                    )
+                } else {
+                    execution.output = task.output
+                    execution.currentStep = null
+                    stateMachine.transition(execution, ExecutionStatus.COMPLETED)
+                    executionRepository.save(execution)
+                    log.info("Execution {} completed successfully after branch block", execution.id)
+                }
+                return
+            }
+        }
+
         // Sequential task: dispatch next element
         val nextTask = taskDispatcher.dispatchNext(
             executionId = execution.id!!,
@@ -301,6 +358,21 @@ class ExecutionEngine(
                     execution.id
                 )
             }
+            return
+        }
+
+        // Branch task: fail the execution immediately (no fan-out within a branch)
+        if (task.stepType == StepType.BRANCH) {
+            execution.error = "Branch task '${task.stepName}' (branch '${task.parallelGroup}', " +
+                "key '${task.branchKey}') dead-lettered after ${task.maxAttempts} attempts: ${task.error}"
+            execution.currentStep = task.stepName
+            stateMachine.transition(execution, ExecutionStatus.FAILED)
+            executionRepository.save(execution)
+
+            log.warn(
+                "Execution {} FAILED: branch task {} (step '{}', branch '{}', key '{}') dead-lettered",
+                execution.id, taskId, task.stepName, task.parallelGroup, task.branchKey
+            )
             return
         }
 

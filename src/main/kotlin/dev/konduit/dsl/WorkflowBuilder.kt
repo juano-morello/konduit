@@ -75,6 +75,22 @@ class WorkflowBuilder(private val name: String) {
         elements.add(builder.build())
     }
 
+    /**
+     * Define a conditional branch block. The previous step's output is matched
+     * against `on()` conditions to select which branch to execute.
+     *
+     * ```kotlin
+     * branch("evaluate-risk") {
+     *     on("LOW") { step("fast-track") { handler { ctx -> "done" } } }
+     *     on("HIGH") { step("deep-review") { handler { ctx -> "reviewed" } } }
+     *     otherwise { step("manual") { handler { ctx -> "manual" } } }
+     * }
+     * ```
+     */
+    fun branch(name: String, block: BranchBuilder.() -> Unit) {
+        elements.add(BranchBuilder(name).apply(block).build())
+    }
+
     fun build(): WorkflowDefinition = WorkflowDefinition(
         name = name,
         version = version,
