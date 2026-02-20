@@ -55,7 +55,7 @@ class MetricsConfig(
 
         // Active workers
         Gauge.builder("konduit_workers_active") {
-            workerRepository.findByStatus(WorkerStatus.ACTIVE).size.toDouble()
+            workerRepository.countByStatus(WorkerStatus.ACTIVE).toDouble()
         }.description("Number of active workers")
             .register(meterRegistry)
 
@@ -63,24 +63,10 @@ class MetricsConfig(
     }
 
     private fun computeOldestPendingTaskAge(): Double {
-        // Use a simple query approach: count gives us an indication,
-        // but for the oldest task we need to check the repository
-        val pendingCount = taskRepository.countByStatus(TaskStatus.PENDING)
-        if (pendingCount == 0L) return 0.0
-
-        // We'll use the existing acquireTasks query pattern but just for reading
-        // Since we don't have a direct "find oldest" query, we approximate
-        // by checking if there are pending tasks
         return try {
-            val tasks = taskRepository.findAll()
-                .filter { it.status == TaskStatus.PENDING }
-                .minByOrNull { it.createdAt }
-
-            if (tasks != null) {
-                Duration.between(tasks.createdAt, Instant.now()).seconds.toDouble()
-            } else {
-                0.0
-            }
+            val oldestCreatedAt = taskRepository.findOldestCreatedAtByStatus(TaskStatus.PENDING)
+                ?: return 0.0
+            Duration.between(oldestCreatedAt, Instant.now()).seconds.toDouble()
         } catch (e: Exception) {
             log.debug("Error computing oldest pending task age: {}", e.message)
             0.0

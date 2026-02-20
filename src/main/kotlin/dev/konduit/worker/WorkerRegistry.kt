@@ -1,5 +1,6 @@
 package dev.konduit.worker
 
+import dev.konduit.persistence.entity.TaskEntity
 import dev.konduit.persistence.entity.TaskStatus
 import dev.konduit.persistence.entity.WorkerEntity
 import dev.konduit.persistence.entity.WorkerStatus
@@ -119,11 +120,12 @@ class WorkerRegistry(
 
         log.warn("Detected {} stale worker(s)", staleWorkers.size)
 
+        val allReclaimedTasks = mutableListOf<TaskEntity>()
+
         for (worker in staleWorkers) {
             worker.status = WorkerStatus.STOPPED
             worker.stoppedAt = Instant.now()
             worker.activeTasks = 0
-            workerRepository.save(worker)
 
             // Reclaim tasks locked by this stale worker
             val lockedTasks = taskRepository.findByLockedBy(worker.workerId)
@@ -132,18 +134,24 @@ class WorkerRegistry(
                 task.lockedBy = null
                 task.lockedAt = null
                 task.lockTimeoutAt = null
-                taskRepository.save(task)
 
                 log.info(
                     "Reclaimed task {} (step '{}') from stale worker {}",
                     task.id, task.stepName, worker.workerId
                 )
             }
+            allReclaimedTasks.addAll(lockedTasks)
 
             log.warn(
                 "Stale worker {} cleaned up: {} task(s) reclaimed",
                 worker.workerId, lockedTasks.size
             )
+        }
+
+        // Bulk save all modified workers and tasks
+        workerRepository.saveAll(staleWorkers)
+        if (allReclaimedTasks.isNotEmpty()) {
+            taskRepository.saveAll(allReclaimedTasks)
         }
 
         return staleWorkers.size

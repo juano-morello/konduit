@@ -87,5 +87,19 @@ interface TaskRepository : JpaRepository<TaskEntity, UUID> {
      * Used during stale worker detection and graceful shutdown to reclaim tasks.
      */
     fun findByLockedBy(workerId: String): List<TaskEntity>
+
+    /**
+     * Get the oldest created_at timestamp for tasks with the given status.
+     * Used by MetricsConfig to compute oldest pending task age without loading all tasks.
+     */
+    @Query("SELECT MIN(t.createdAt) FROM TaskEntity t WHERE t.status = :status")
+    fun findOldestCreatedAtByStatus(@Param("status") status: TaskStatus): Instant?
+
+    /**
+     * Count tasks grouped by status. Returns pairs of (status, count).
+     * Used by StatsController to get all status counts in a single query.
+     */
+    @Query("SELECT t.status, COUNT(t) FROM TaskEntity t GROUP BY t.status")
+    fun countGroupByStatus(): List<Array<Any>>
 }
 

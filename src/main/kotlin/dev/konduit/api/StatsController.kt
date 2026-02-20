@@ -30,33 +30,34 @@ class StatsController(
     /**
      * Get comprehensive system statistics including executions, tasks,
      * workers, dead letters, queue depth, and throughput.
+     *
+     * Optimized to use aggregate GROUP BY queries — total of 7 DB queries
+     * instead of ~18 individual countByStatus() calls.
      */
     @GetMapping
     fun getStats(): ResponseEntity<StatsResponse> {
-        // Execution stats
-        val executionByStatus = ExecutionStatus.entries.associate { status ->
-            status.name to executionRepository.countByStatus(status)
-        }
+        // Execution stats: single GROUP BY query (replaces 6 individual countByStatus calls)
+        val executionByStatus = executionRepository.countGroupByStatus()
+            .associate { row -> (row[0] as ExecutionStatus).name to (row[1] as Long) }
         val executionTotal = executionByStatus.values.sum()
 
-        // Task stats
-        val taskByStatus = TaskStatus.entries.associate { status ->
-            status.name to taskRepository.countByStatus(status)
-        }
+        // Task stats: single GROUP BY query (replaces 6 individual countByStatus calls)
+        val taskByStatus = taskRepository.countGroupByStatus()
+            .associate { row -> (row[0] as TaskStatus).name to (row[1] as Long) }
         val taskTotal = taskByStatus.values.sum()
 
-        // Worker stats
-        val activeWorkers = workerRepository.findByStatus(WorkerStatus.ACTIVE)
+        // Queue depth from the already-fetched task stats
+        val queueDepth = taskByStatus[TaskStatus.PENDING.name] ?: 0L
+
+        // Worker stats: single aggregate query for active workers (replaces findByStatus + count)
         val workerTotal = workerRepository.count()
-        val workerActive = activeWorkers.size.toLong()
-        val totalConcurrency = activeWorkers.sumOf { it.concurrency }
-        val totalActiveTasks = activeWorkers.sumOf { it.activeTasks }
+        val activeStats = workerRepository.getAggregateStatsByStatus(WorkerStatus.ACTIVE)
+        val workerActive = (activeStats[0] as Long)
+        val totalConcurrency = (activeStats[1] as Long).toInt()
+        val totalActiveTasks = (activeStats[2] as Long).toInt()
 
         // Dead letters
         val deadLetterCount = deadLetterRepository.count()
-
-        // Queue depth: PENDING tasks
-        val queueDepth = taskRepository.countByStatus(TaskStatus.PENDING)
 
         // Throughput: executions and tasks completed in the last hour
         val oneHourAgo = Instant.now().minus(1, ChronoUnit.HOURS)

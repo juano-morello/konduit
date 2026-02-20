@@ -19,9 +19,10 @@ import java.time.Instant
  * another worker. The attempt counter is NOT incremented because a lock timeout
  * is not a task failure — the task may not have started executing.
  *
- * Note: This currently runs on all instances (idempotent thanks to SKIP LOCKED
- * in the findOrphanedTasks query). In Phase 3 with Redis, this should run only
- * on the leader instance.
+ * Runs on all instances concurrently. This is safe because [findOrphanedTasks]
+ * uses `FOR UPDATE SKIP LOCKED`, so each orphaned task is claimed by exactly one
+ * instance. No leader election is required — the SKIP LOCKED pattern provides
+ * natural distributed coordination without additional infrastructure.
  */
 @Component
 @ConditionalOnProperty(name = ["konduit.worker.auto-start"], havingValue = "true", matchIfMissing = true)
@@ -58,13 +59,15 @@ class OrphanReclaimer(
                 task.lockedAt = null
                 task.lockTimeoutAt = null
                 // Do NOT increment attempt counter — lock timeout is not a failure (see ADR-007)
-                taskRepository.save(task)
 
                 log.info(
                     "Reclaimed orphaned task {}: step '{}', was locked by '{}', lock expired at {}",
                     task.id, task.stepName, previousLockedBy, previousLockTimeout
                 )
             }
+
+            // Bulk save all reclaimed tasks
+            taskRepository.saveAll(orphanedTasks)
 
             log.info("Reclaimed {} orphaned task(s)", orphanedTasks.size)
         } catch (e: Exception) {

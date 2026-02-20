@@ -45,5 +45,12 @@ interface ExecutionRepository : JpaRepository<ExecutionEntity, UUID> {
         nativeQuery = true
     )
     fun findTimedOutExecutions(@Param("now") now: Instant): List<ExecutionEntity>
+
+    /**
+     * Count executions grouped by status. Returns pairs of (status, count).
+     * Used by StatsController to get all status counts in a single query.
+     */
+    @Query("SELECT e.status, COUNT(e) FROM ExecutionEntity e GROUP BY e.status")
+    fun countGroupByStatus(): List<Array<Any>>
 }
 
