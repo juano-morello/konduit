@@ -28,6 +28,7 @@ konduit:
   redis:
     enabled: false
   worker:
+    auto-start: false
     concurrency: 5
     heartbeat-interval: 10s
     drain-timeout: 5s

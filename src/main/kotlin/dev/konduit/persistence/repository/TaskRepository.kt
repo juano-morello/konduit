@@ -79,5 +79,11 @@ interface TaskRepository : JpaRepository<TaskEntity, UUID> {
     fun countByExecutionIdAndParallelGroup(executionId: UUID, parallelGroup: String): Long
 
     fun countByStatus(status: TaskStatus): Long
+
+    /**
+     * Find tasks currently locked by a specific worker.
+     * Used during stale worker detection and graceful shutdown to reclaim tasks.
+     */
+    fun findByLockedBy(workerId: String): List<TaskEntity>
 }
 
