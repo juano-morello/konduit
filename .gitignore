@@ -1,14 +1,13 @@
-# Dependencies
-node_modules/
-.pnpm-store/
-
-# Build outputs
-dist/
+# Gradle
+.gradle/
 build/
-out/
+!gradle/wrapper/gradle-wrapper.jar
 
 # IDE
 .idea/
+*.iml
+*.ipr
+*.iws
 .vscode/
 *.swp
 *.swo
@@ -22,6 +21,8 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# Kotlin
+*.class
+
 # Logs
 *.log
-npm-debug.log*
