@@ -6,8 +6,10 @@ import org.springframework.boot.actuate.health.Health
 import org.springframework.boot.actuate.health.HealthIndicator
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Primary
 import org.springframework.data.redis.connection.RedisConnectionFactory
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.data.redis.listener.RedisMessageListenerContainer
@@ -32,6 +34,7 @@ class RedisConfig {
     private val log = LoggerFactory.getLogger(RedisConfig::class.java)
 
     @Bean
+    @Primary
     fun konduitRedisTemplate(connectionFactory: RedisConnectionFactory): RedisTemplate<String, String> {
         val template = RedisTemplate<String, String>()
         template.connectionFactory = connectionFactory
@@ -58,7 +61,7 @@ class RedisConfig {
     @Bean
     @ConditionalOnBean(RedisTemplate::class)
     fun redisHealthIndicator(
-        redisTemplate: RedisTemplate<String, String>
+        @Qualifier("konduitRedisTemplate") redisTemplate: RedisTemplate<String, String>
     ): HealthIndicator {
         return HealthIndicator {
             try {

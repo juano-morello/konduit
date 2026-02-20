@@ -4,6 +4,7 @@ import dev.konduit.KonduitProperties
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -34,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference
 )
 @ConditionalOnBean(RedisTemplate::class)
 class RedisLeaderElection(
-    private val redisTemplate: RedisTemplate<String, String>,
+    @Qualifier("konduitRedisTemplate") private val redisTemplate: RedisTemplate<String, String>,
     private val properties: KonduitProperties
 ) : LeaderElectionService {
 
