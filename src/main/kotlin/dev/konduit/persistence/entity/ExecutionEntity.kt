@@ -27,7 +27,7 @@ class ExecutionEntity(
     @Column(name = "workflow_version", nullable = false)
     var workflowVersion: Int = 1,
 
-    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, columnDefinition = "execution_status")
     var status: ExecutionStatus = ExecutionStatus.PENDING,
 

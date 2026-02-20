@@ -24,14 +24,14 @@ class TaskEntity(
     @Column(name = "step_name", nullable = false, length = 255)
     var stepName: String = "",
 
-    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "step_type", nullable = false, columnDefinition = "step_type")
     var stepType: StepType = StepType.SEQUENTIAL,
 
     @Column(name = "step_order", nullable = false)
     var stepOrder: Int = 0,
 
-    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, columnDefinition = "task_status")
     var status: TaskStatus = TaskStatus.PENDING,
 

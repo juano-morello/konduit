@@ -1,6 +1,8 @@
 package dev.konduit.persistence.entity
 
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.UUID
 
@@ -19,7 +21,7 @@ class WorkerEntity(
     @Column(name = "worker_id", nullable = false, unique = true, length = 255)
     var workerId: String = "",
 
-    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, columnDefinition = "worker_status")
     var status: WorkerStatus = WorkerStatus.ACTIVE,
 
