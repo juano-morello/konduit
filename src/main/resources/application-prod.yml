@@ -1,0 +1,38 @@
+# Production profile — activate with SPRING_PROFILES_ACTIVE=prod
+# All values here override application.yml defaults.
+
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 40
+      minimum-idle: 10
+      connection-timeout: 5000
+      validation-timeout: 3000
+      leak-detection-threshold: 30000
+
+  data:
+    redis:
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 4
+          max-wait: 2000ms
+
+  jpa:
+    properties:
+      hibernate:
+        generate_statistics: false
+
+logging:
+  level:
+    dev.konduit: INFO
+    org.springframework: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate: WARN
+
+server:
+  tomcat:
+    max-threads: 200
+    accept-count: 100
+

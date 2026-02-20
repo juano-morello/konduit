@@ -3,12 +3,14 @@ spring:
     name: konduit
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/konduit
-    username: konduit
-    password: konduit
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/konduit}
+    username: ${DATABASE_USERNAME:konduit}
+    password: ${DATABASE_PASSWORD:konduit}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
+      connection-timeout: 10000
+      validation-timeout: 5000
 
   jpa:
     hibernate:
@@ -22,8 +24,9 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
       timeout: 2000ms
 
   jackson:
