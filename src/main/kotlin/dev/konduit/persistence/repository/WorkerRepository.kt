@@ -40,6 +40,6 @@ interface WorkerRepository : JpaRepository<WorkerEntity, UUID> {
         "SELECT COUNT(w), COALESCE(SUM(w.concurrency), 0), COALESCE(SUM(w.activeTasks), 0) " +
         "FROM WorkerEntity w WHERE w.status = :status"
     )
-    fun getAggregateStatsByStatus(@Param("status") status: WorkerStatus): Array<Any>
+    fun getAggregateStatsByStatus(@Param("status") status: WorkerStatus): List<Array<Any>>
 }
 

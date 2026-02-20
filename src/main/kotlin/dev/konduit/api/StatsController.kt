@@ -52,9 +52,10 @@ class StatsController(
         // Worker stats: single aggregate query for active workers (replaces findByStatus + count)
         val workerTotal = workerRepository.count()
         val activeStats = workerRepository.getAggregateStatsByStatus(WorkerStatus.ACTIVE)
-        val workerActive = (activeStats[0] as Long)
-        val totalConcurrency = (activeStats[1] as Long).toInt()
-        val totalActiveTasks = (activeStats[2] as Long).toInt()
+        val row = activeStats.firstOrNull() ?: arrayOf(0L, 0L, 0L)
+        val workerActive = (row[0] as Long)
+        val totalConcurrency = (row[1] as Long).toInt()
+        val totalActiveTasks = (row[2] as Long).toInt()
 
         // Dead letters
         val deadLetterCount = deadLetterRepository.count()

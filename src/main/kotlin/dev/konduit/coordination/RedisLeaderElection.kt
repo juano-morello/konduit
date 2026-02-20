@@ -124,7 +124,7 @@ class RedisLeaderElection(
                 ttlMs.toString()
             )
 
-            if (result != null && result == 1L) {
+            if (result == 1L) {
                 log.debug("Leader lock renewed: workerId={}, ttl={}ms", workerId, ttlMs)
             } else {
                 // Someone else has the lock or it expired
