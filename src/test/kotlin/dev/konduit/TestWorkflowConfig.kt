@@ -66,5 +66,71 @@ class TestWorkflowConfig {
             }
         }
     }
+
+    @Bean
+    fun parallelWorkflow(): WorkflowDefinition = workflow("parallel-test") {
+        version(1)
+        description("Workflow with parallel fan-out/fan-in")
+
+        step("prepare") {
+            handler { ctx -> ctx.input }
+        }
+
+        parallel {
+            step("check-a") {
+                handler { ctx -> mapOf("check" to "a-done") }
+            }
+            step("check-b") {
+                handler { ctx -> mapOf("check" to "b-done") }
+                retryPolicy {
+                    maxAttempts(1)
+                    backoff(BackoffStrategy.FIXED)
+                    baseDelay(100)
+                }
+            }
+            step("check-c") {
+                handler { ctx -> mapOf("check" to "c-done") }
+            }
+        }
+
+        step("combine") {
+            handler { ctx -> mapOf("combined" to true) }
+        }
+    }
+
+    @Bean
+    fun branchWorkflow(): WorkflowDefinition = workflow("branch-test") {
+        version(1)
+        description("Workflow with conditional branching")
+
+        step("evaluate") {
+            handler { ctx -> ctx.input }
+        }
+
+        branch("risk") {
+            on("LOW") {
+                step("fast-track") {
+                    handler { ctx -> mapOf("result" to "fast-tracked") }
+                }
+            }
+            on("HIGH") {
+                step("deep-review") {
+                    handler { ctx -> mapOf("result" to "reviewed") }
+                }
+                step("escalate") {
+                    handler { ctx -> mapOf("result" to "escalated") }
+                }
+            }
+            otherwise {
+                step("manual") {
+                    handler { ctx -> mapOf("result" to "manual-review") }
+                }
+            }
+        }
+
+        step("finalize") {
+            handler { ctx -> mapOf("finalized" to true) }
+        }
+    }
 }
 
