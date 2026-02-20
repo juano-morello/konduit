@@ -7,6 +7,7 @@ import dev.konduit.api.dto.TaskResponse
 import dev.konduit.persistence.repository.DeadLetterRepository
 import dev.konduit.queue.DeadLetterFilter
 import dev.konduit.queue.DeadLetterQueue
+import jakarta.validation.Valid
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.http.ResponseEntity
@@ -75,7 +76,7 @@ class DeadLetterController(
      */
     @PostMapping("/reprocess-batch")
     fun reprocessBatch(
-        @RequestBody request: BatchReprocessRequest
+        @Valid @RequestBody request: BatchReprocessRequest
     ): ResponseEntity<List<TaskResponse>> {
         val filter = DeadLetterFilter(
             workflowName = request.workflowName,

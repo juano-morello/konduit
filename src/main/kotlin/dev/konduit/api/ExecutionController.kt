@@ -10,6 +10,7 @@ import dev.konduit.engine.ExecutionEngine
 import dev.konduit.persistence.entity.ExecutionStatus
 import dev.konduit.persistence.repository.ExecutionRepository
 import dev.konduit.persistence.repository.TaskRepository
+import jakarta.validation.Valid
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.http.HttpStatus
@@ -33,10 +34,8 @@ class ExecutionController(
      */
     @PostMapping
     fun triggerExecution(
-        @RequestBody request: TriggerExecutionRequest
+        @Valid @RequestBody request: TriggerExecutionRequest
     ): ResponseEntity<ExecutionResponse> {
-        require(request.workflowName.isNotBlank()) { "workflowName must not be blank" }
-
         val execution = executionEngine.triggerExecution(
             workflowName = request.workflowName,
             input = request.input,
