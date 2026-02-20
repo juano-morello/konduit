@@ -25,13 +25,12 @@ data class StepContext(
     val attempt: Int,
     val stepName: String,
     val workflowName: String,
-    val metadata: MutableMap<String, Any?> = mutableMapOf()
-) {
+    val metadata: MutableMap<String, Any?> = mutableMapOf(),
     /**
-     * Placeholder for Phase 2 parallel execution outputs.
-     * Will contain outputs from all parallel branches keyed by step name.
+     * Outputs from all parallel branches keyed by step name.
+     * Populated for the step immediately following a parallel block.
+     * Contains only successful outputs; dead-lettered steps are omitted.
      */
-    val parallelOutputs: Map<String, Any?>
-        get() = emptyMap()
-}
+    val parallelOutputs: Map<String, Any?> = emptyMap()
+)
 

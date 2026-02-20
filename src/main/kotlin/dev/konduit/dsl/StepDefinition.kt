@@ -14,11 +14,11 @@ import java.time.Duration
  *                   Null means use the workflow-level or global default.
  */
 data class StepDefinition(
-    val name: String,
+    override val name: String,
     val handler: (StepContext) -> Any?,
     val retryPolicy: RetryPolicy = RetryPolicy(),
     val timeout: Duration? = null
-) {
+) : WorkflowElement {
     /**
      * Returns a serializable representation of this step definition (without the handler)
      * suitable for JSONB storage in the workflows table.

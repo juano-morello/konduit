@@ -72,8 +72,8 @@ class WorkflowRegistry(
         persistToDatabase(definition)
 
         log.info(
-            "Registered workflow '{}' v{} with {} step(s)",
-            definition.name, definition.version, definition.steps.size
+            "Registered workflow '{}' v{} with {} element(s), {} step(s)",
+            definition.name, definition.version, definition.elements.size, definition.steps.size
         )
     }
 

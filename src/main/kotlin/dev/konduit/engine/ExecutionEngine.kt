@@ -3,6 +3,7 @@ package dev.konduit.engine
 import dev.konduit.dsl.WorkflowRegistry
 import dev.konduit.persistence.entity.ExecutionEntity
 import dev.konduit.persistence.entity.ExecutionStatus
+import dev.konduit.persistence.entity.StepType
 import dev.konduit.persistence.repository.ExecutionRepository
 import dev.konduit.persistence.repository.TaskRepository
 import dev.konduit.persistence.repository.WorkflowRepository
@@ -115,8 +116,9 @@ class ExecutionEngine(
      * Called when a task has been successfully completed by a worker.
      *
      * Advances the workflow:
-     * - If there's a next step: creates the next task with this task's output as input.
-     * - If this was the last step: marks the execution as COMPLETED with the final output.
+     * - Sequential tasks: dispatches the next element immediately.
+     * - Parallel tasks: checks fan-in condition (all tasks in group terminal).
+     *   Only advances when all parallel tasks are done.
      * - If the execution is CANCELLED: does nothing (prevents new task dispatch).
      */
     @Transactional
@@ -146,7 +148,48 @@ class ExecutionEngine(
                 "not found in registry for execution ${execution.id}"
         )
 
-        // Try to dispatch the next task
+        // Handle parallel tasks: check fan-in before advancing
+        if (task.stepType == StepType.PARALLEL && task.parallelGroup != null) {
+            if (!taskDispatcher.isParallelGroupComplete(execution.id!!, task.parallelGroup!!)) {
+                log.info(
+                    "Parallel task {} (step '{}', group '{}') completed, but group not yet complete. Waiting for fan-in.",
+                    taskId, task.stepName, task.parallelGroup
+                )
+                return
+            }
+
+            // Fan-in complete — collect outputs and advance
+            log.info(
+                "Fan-in complete for execution {}, parallel group '{}'",
+                execution.id, task.parallelGroup
+            )
+            val parallelOutputs = taskDispatcher.collectParallelOutputs(execution.id!!, task.parallelGroup!!)
+
+            val nextTask = taskDispatcher.dispatchNext(
+                executionId = execution.id!!,
+                completedStepName = task.stepName,
+                completedOutput = task.output,
+                workflowDefinition = workflowDef,
+                parallelOutputs = parallelOutputs
+            )
+
+            if (nextTask != null) {
+                execution.currentStep = nextTask.stepName
+                executionRepository.save(execution)
+                log.info("Execution {} advanced past parallel block to step '{}'", execution.id, nextTask.stepName)
+            } else {
+                // Parallel block was the last element — use aggregated outputs
+                @Suppress("UNCHECKED_CAST")
+                execution.output = parallelOutputs as? Map<String, Any>
+                execution.currentStep = null
+                stateMachine.transition(execution, ExecutionStatus.COMPLETED)
+                executionRepository.save(execution)
+                log.info("Execution {} completed successfully after parallel block", execution.id)
+            }
+            return
+        }
+
+        // Sequential task: dispatch next element
         val nextTask = taskDispatcher.dispatchNext(
             executionId = execution.id!!,
             completedStepName = task.stepName,
@@ -176,7 +219,10 @@ class ExecutionEngine(
      * Called when a task has been moved to the dead letter queue
      * (all retry attempts exhausted).
      *
-     * Transitions the execution to FAILED.
+     * For sequential tasks: transitions the execution to FAILED immediately.
+     * For parallel tasks (ADR-004): does NOT cancel siblings. Checks if all
+     * parallel tasks are in terminal states. If so, advances with partial results.
+     * The post-parallel step receives only successful outputs.
      */
     @Transactional
     override fun onTaskDeadLettered(taskId: UUID) {
@@ -197,6 +243,68 @@ class ExecutionEngine(
             return
         }
 
+        // Parallel task failure isolation (ADR-004): don't fail execution immediately
+        if (task.stepType == StepType.PARALLEL && task.parallelGroup != null) {
+            log.warn(
+                "Parallel task {} (step '{}', group '{}') dead-lettered. Siblings continue.",
+                taskId, task.stepName, task.parallelGroup
+            )
+
+            // Check if all parallel tasks are now in terminal states
+            if (!taskDispatcher.isParallelGroupComplete(execution.id!!, task.parallelGroup!!)) {
+                log.info(
+                    "Parallel group '{}' not yet complete after dead letter. Waiting for remaining tasks.",
+                    task.parallelGroup
+                )
+                return
+            }
+
+            // Fan-in complete (with partial failures) — advance with partial results
+            log.info(
+                "Fan-in complete for execution {} (with failures), parallel group '{}'",
+                execution.id, task.parallelGroup
+            )
+
+            val workflowDef = workflowRegistry.findByNameAndVersion(
+                execution.workflowName, execution.workflowVersion
+            ) ?: throw IllegalStateException(
+                "Workflow '${execution.workflowName}' v${execution.workflowVersion} " +
+                    "not found in registry for execution ${execution.id}"
+            )
+
+            val parallelOutputs = taskDispatcher.collectParallelOutputs(execution.id!!, task.parallelGroup!!)
+
+            val nextTask = taskDispatcher.dispatchNext(
+                executionId = execution.id!!,
+                completedStepName = task.stepName,
+                completedOutput = null,
+                workflowDefinition = workflowDef,
+                parallelOutputs = parallelOutputs
+            )
+
+            if (nextTask != null) {
+                execution.currentStep = nextTask.stepName
+                executionRepository.save(execution)
+                log.info(
+                    "Execution {} advanced past parallel block (with failures) to step '{}'",
+                    execution.id, nextTask.stepName
+                )
+            } else {
+                // Parallel block was the last element
+                @Suppress("UNCHECKED_CAST")
+                execution.output = parallelOutputs as? Map<String, Any>
+                execution.currentStep = null
+                stateMachine.transition(execution, ExecutionStatus.COMPLETED)
+                executionRepository.save(execution)
+                log.info(
+                    "Execution {} completed (with partial parallel failures) after parallel block",
+                    execution.id
+                )
+            }
+            return
+        }
+
+        // Sequential task: fail the execution immediately
         execution.error = "Task '${task.stepName}' dead-lettered after ${task.maxAttempts} attempts: ${task.error}"
         execution.currentStep = task.stepName
         stateMachine.transition(execution, ExecutionStatus.FAILED)

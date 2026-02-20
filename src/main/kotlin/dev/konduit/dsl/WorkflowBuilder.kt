@@ -34,7 +34,8 @@ package dev.konduit.dsl
 class WorkflowBuilder(private val name: String) {
     private var version: Int = 1
     private var description: String? = null
-    private val steps = mutableListOf<StepDefinition>()
+    private val elements = mutableListOf<WorkflowElement>()
+    private var parallelCounter = 0
 
     /**
      * Set the version number for this workflow definition.
@@ -51,17 +52,34 @@ class WorkflowBuilder(private val name: String) {
     }
 
     /**
-     * Define a step in this workflow. Steps execute in the order they are defined.
+     * Define a sequential step in this workflow. Steps execute in the order they are defined.
      */
     fun step(name: String, block: StepBuilder.() -> Unit) {
-        steps.add(StepBuilder(name).apply(block).build())
+        elements.add(StepBuilder(name).apply(block).build())
+    }
+
+    /**
+     * Define a parallel block. All steps within the block execute concurrently (fan-out).
+     * The workflow advances to the next element only when all parallel steps complete (fan-in).
+     *
+     * ```kotlin
+     * parallel {
+     *     step("check-a") { handler { ctx -> checkA(ctx.input) } }
+     *     step("check-b") { handler { ctx -> checkB(ctx.input) } }
+     * }
+     * ```
+     */
+    fun parallel(block: ParallelBuilder.() -> Unit) {
+        val builder = ParallelBuilder("parallel-${parallelCounter++}")
+        builder.apply(block)
+        elements.add(builder.build())
     }
 
     fun build(): WorkflowDefinition = WorkflowDefinition(
         name = name,
         version = version,
         description = description,
-        steps = steps.toList()
+        elements = elements.toList()
     )
 }
 
