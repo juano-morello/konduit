@@ -224,7 +224,6 @@ is_terminal_status() {
   esac
 }
 
-
 # ── Print final stats and Prometheus metrics ─────────────────────────────────
 print_system_stats() {
   header "System Stats"
@@ -293,9 +292,8 @@ run_burst() {
 
     # Fire in background, write result to temp file
     (
-      local eid
-      eid=$(trigger_workflow "$body")
-      echo "$eid" > "${tmpdir}/exec_${i}.id"
+      _eid=$(trigger_workflow "$body")
+      echo "$_eid" > "${tmpdir}/exec_${i}.id"
     ) &
     active_jobs=$(jobs -r | wc -l | tr -d ' ')
     triggered=$((triggered + 1))
@@ -447,12 +445,6 @@ run_soak() {
   local results_dir="${tmpdir}/results"
   mkdir -p "$inflight_dir" "$results_dir"
 
-  # Counters (use files for cross-process visibility)
-  echo "0" > "${tmpdir}/total_triggered"
-  echo "0" > "${tmpdir}/total_completed"
-  echo "0" > "${tmpdir}/total_failed"
-  echo "0" > "${tmpdir}/peak_inflight"
-
   # Interval tracking
   local interval_num=0
   local interval_start
@@ -492,7 +484,6 @@ run_soak() {
   # ── Sustain phase ───────────────────────────────────────────────────────
   header "Sustain Phase"
 
-  local delay_ms=$((1000 / RATE))  # ms between triggers
   local delay_s
   delay_s=$(awk "BEGIN { printf \"%.3f\", 1.0 / ${RATE} }")
 
