@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*
 import java.util.UUID
 
 /**
- * REST controller for workflow executions (PRD §5.2).
+ * REST controller for workflow executions (/api/v1/executions).
  */
 @RestController
 @RequestMapping("/api/v1/executions")

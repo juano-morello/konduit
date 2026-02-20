@@ -5,7 +5,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Execution response DTO (PRD §5.2).
+ * Execution response DTO for the /api/v1/executions endpoints.
  */
 data class ExecutionResponse(
     val id: UUID,
@@ -38,7 +38,7 @@ data class ExecutionResponse(
 }
 
 /**
- * Task response DTO (PRD §5.2).
+ * Task response DTO for the /api/v1/executions/{id}/tasks endpoint.
  */
 data class TaskResponse(
     val id: UUID,
@@ -75,7 +75,7 @@ data class TaskResponse(
 }
 
 /**
- * Workflow response DTO (PRD §5.1).
+ * Workflow response DTO for the /api/v1/workflows endpoints.
  */
 data class WorkflowResponse(
     val name: String,
@@ -93,7 +93,7 @@ data class StepSummary(
 )
 
 /**
- * Dead letter response DTO (PRD §5.3).
+ * Dead letter response DTO for the /api/v1/dead-letters endpoints.
  */
 data class DeadLetterResponse(
     val id: UUID,
@@ -120,7 +120,7 @@ data class DeadLetterResponse(
 }
 
 /**
- * Worker response DTO (PRD §5.4).
+ * Worker response DTO for the /api/v1/workers endpoint.
  */
 data class WorkerResponse(
     val id: UUID,

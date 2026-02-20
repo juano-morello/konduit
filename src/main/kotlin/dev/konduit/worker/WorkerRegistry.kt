@@ -12,7 +12,7 @@ import java.time.Duration
 import java.time.Instant
 
 /**
- * Manages worker lifecycle in the database (PRD §7.1).
+ * Manages worker lifecycle in the database.
  *
  * Handles registration, deregistration, heartbeat updates,
  * and stale worker detection with task reclamation.
@@ -95,7 +95,7 @@ class WorkerRegistry(
     }
 
     /**
-     * Detect stale workers and reclaim their locked tasks (PRD §7.1).
+     * Detect stale workers and reclaim their locked tasks.
      *
      * A worker is considered stale if its last heartbeat is older than the
      * given threshold and it is still in ACTIVE status.

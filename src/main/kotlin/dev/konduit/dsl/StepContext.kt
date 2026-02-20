@@ -4,7 +4,7 @@ import java.util.UUID
 
 /**
  * Context object passed to step handlers during execution.
- * See PRD §4.4 for specification.
+ * Provides access to step input, execution context, and parallel outputs.
  *
  * @property executionId Unique identifier for the current workflow execution.
  * @property input The input data for this specific step (output of the previous step,

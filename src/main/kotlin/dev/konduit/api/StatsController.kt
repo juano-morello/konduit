@@ -16,7 +16,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /**
- * REST controller for system statistics (PRD §5.4).
+ * REST controller for system statistics (GET /api/v1/stats).
  */
 @RestController
 @RequestMapping("/api/v1/stats")

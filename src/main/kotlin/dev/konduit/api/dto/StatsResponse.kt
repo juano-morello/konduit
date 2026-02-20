@@ -1,7 +1,7 @@
 package dev.konduit.api.dto
 
 /**
- * Enhanced stats response DTO (PRD §5.4).
+ * Enhanced stats response DTO for the GET /api/v1/stats endpoint.
  * Provides comprehensive system statistics including executions, tasks,
  * workers, dead letters, queue depth, and throughput metrics.
  */

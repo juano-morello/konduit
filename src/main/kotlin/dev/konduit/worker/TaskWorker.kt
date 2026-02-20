@@ -30,7 +30,7 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 /**
- * Main worker component that polls for tasks and executes them (PRD §7).
+ * Main worker component that polls for tasks and executes them.
  *
  * On startup:
  * 1. Generates a unique worker ID (hostname-uuid)
@@ -266,7 +266,7 @@ class TaskWorker(
 
 
     /**
-     * Graceful shutdown (PRD §7.3).
+     * Graceful shutdown.
      *
      * 1. Set status to DRAINING (stop accepting new tasks in poll loop)
      * 2. Shut down the poll scheduler

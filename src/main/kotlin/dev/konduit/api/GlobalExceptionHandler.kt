@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.time.Instant
 
 /**
- * Global exception handler producing standard error responses (PRD §5.5).
+ * Global exception handler producing standard [ErrorResponse] payloads for all API errors.
  */
 @RestControllerAdvice
 class GlobalExceptionHandler {

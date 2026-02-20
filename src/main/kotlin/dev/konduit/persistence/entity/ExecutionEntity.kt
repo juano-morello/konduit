@@ -7,7 +7,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * JPA entity mapping to the 'executions' table (PRD §3.4.2).
+ * JPA entity mapping to the 'executions' table.
  * Tracks workflow execution instances with their state, input/output, and timing.
  */
 @Entity

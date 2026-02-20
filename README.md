@@ -246,6 +246,74 @@ curl -X POST http://localhost:8080/api/v1/executions \
 | `/actuator/metrics` | Spring Boot metrics |
 | `/actuator/info` | Application info |
 
+## Error Responses
+
+All API errors return a consistent JSON structure via the `GlobalExceptionHandler`:
+
+```json
+{
+  "status": 400,
+  "error": "Bad Request",
+  "message": "workflowName must not be blank",
+  "timestamp": "2026-02-20T12:00:00Z",
+  "path": "/api/v1/executions"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `int` | HTTP status code |
+| `error` | `string` | HTTP reason phrase (e.g., "Bad Request", "Not Found") |
+| `message` | `string` | Human-readable error detail |
+| `timestamp` | `string` | ISO 8601 timestamp of when the error occurred |
+| `path` | `string` | Request URI that caused the error |
+
+### Common Error Codes
+
+**400 Bad Request** — Invalid input or missing required fields:
+```json
+{
+  "status": 400,
+  "error": "Bad Request",
+  "message": "workflowName must not be blank",
+  "timestamp": "2026-02-20T12:00:00Z",
+  "path": "/api/v1/executions"
+}
+```
+
+**404 Not Found** — Resource does not exist:
+```json
+{
+  "status": 404,
+  "error": "Not Found",
+  "message": "Execution not found: 550e8400-e29b-41d4-a716-446655440000",
+  "timestamp": "2026-02-20T12:00:00Z",
+  "path": "/api/v1/executions/550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**409 Conflict** — Invalid state transition or duplicate idempotency key:
+```json
+{
+  "status": 409,
+  "error": "Conflict",
+  "message": "Execution is already in terminal state: COMPLETED",
+  "timestamp": "2026-02-20T12:00:00Z",
+  "path": "/api/v1/executions/550e8400-e29b-41d4-a716-446655440000/cancel"
+}
+```
+
+**500 Internal Server Error** — Unexpected server-side failure:
+```json
+{
+  "status": 500,
+  "error": "Internal Server Error",
+  "message": "An unexpected error occurred",
+  "timestamp": "2026-02-20T12:00:00Z",
+  "path": "/api/v1/executions"
+}
+```
+
 ## Configuration Reference
 
 All configuration properties are under the `konduit.*` prefix in `application.yml`.
@@ -394,6 +462,7 @@ All architectural decisions are documented in the `docs/adr/` directory:
 | [ADR-005](docs/adr/005-conditional-branching.md) | Lazy Evaluation for Conditional Branching |
 | [ADR-006](docs/adr/006-redis-hybrid-signaling.md) | Redis as Optional Hybrid Signaling Layer |
 | [ADR-007](docs/adr/007-orphan-reclamation.md) | Lock-Timeout-Based Orphan Reclamation |
+| [ADR-008](docs/adr/008-postgres-enum-mapping.md) | PostgreSQL Custom Enum Type Mapping |
 
 ## Technology Stack
 

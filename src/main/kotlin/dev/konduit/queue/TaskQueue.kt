@@ -21,7 +21,7 @@ import java.util.UUID
  * This component manages the task lifecycle: acquire → run → complete/fail/release.
  * All state transitions are transactional and safe for concurrent access.
  *
- * See PRD §6 for the full task queue design.
+ * See [ADR-001](docs/adr/001-postgres-skip-locked.md) for the SKIP LOCKED design rationale.
  */
 @Component
 class TaskQueue(

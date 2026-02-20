@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component
 import java.time.Instant
 
 /**
- * Enforces valid state transitions for workflow executions (PRD §3.3.1).
+ * Enforces valid state transitions for workflow executions.
  *
  * Valid transitions:
  * - PENDING → RUNNING, CANCELLED

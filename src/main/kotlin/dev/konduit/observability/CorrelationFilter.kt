@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component
 import java.util.UUID
 
 /**
- * Servlet filter that establishes correlation context for every HTTP request (PRD §8.2).
+ * Servlet filter that establishes correlation context for every HTTP request.
  *
  * Sets MDC fields:
  * - `correlation_id`: Unique ID per request (from X-Correlation-ID header or generated)

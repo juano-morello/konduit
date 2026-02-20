@@ -7,7 +7,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * JPA entity mapping to the 'dead_letters' table (PRD §3.4.4).
+ * JPA entity mapping to the 'dead_letters' table.
  * Tasks that exhausted all retry attempts are moved here with full error history.
  */
 @Entity

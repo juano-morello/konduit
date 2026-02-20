@@ -6,7 +6,7 @@ import kotlin.random.Random
 
 /**
  * Pure-function calculator for retry delays.
- * Implements the backoff formulas from PRD §4.5:
+ * Implements the backoff formulas (see [ADR-003](docs/adr/003-retry-backoff-jitter.md)):
  *
  * - **FIXED:** delay = baseDelay
  * - **LINEAR:** delay = baseDelay × attempt

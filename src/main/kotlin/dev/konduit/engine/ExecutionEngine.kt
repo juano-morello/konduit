@@ -17,7 +17,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Core orchestrator for workflow executions (PRD §3.2.1).
+ * Core orchestrator for workflow executions.
  *
  * Responsibilities:
  * - Trigger new executions (with idempotency key support)

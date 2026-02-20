@@ -7,7 +7,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * JPA entity mapping to the 'workflows' table (PRD §3.4.1).
+ * JPA entity mapping to the 'workflows' table.
  * Stores workflow definitions with their step graphs as JSONB.
  */
 @Entity

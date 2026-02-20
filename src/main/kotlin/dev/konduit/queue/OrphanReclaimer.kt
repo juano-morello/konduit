@@ -10,14 +10,14 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 /**
- * Scheduled service that reclaims orphaned tasks (PRD §6.3).
+ * Scheduled service that reclaims orphaned tasks (see [ADR-007](docs/adr/007-orphan-reclamation.md)).
  *
  * An orphaned task is one with status=LOCKED whose lock_timeout_at has expired.
  * This happens when a worker crashes or becomes unresponsive while holding a task lock.
  *
  * The reclaimer resets orphaned tasks to PENDING so they can be picked up by
- * another worker. Per PRD §6.3, the attempt counter is NOT incremented because
- * a lock timeout is not a task failure — the task may not have started executing.
+ * another worker. The attempt counter is NOT incremented because a lock timeout
+ * is not a task failure — the task may not have started executing.
  *
  * Note: This currently runs on all instances (idempotent thanks to SKIP LOCKED
  * in the findOrphanedTasks query). In Phase 3 with Redis, this should run only
@@ -57,7 +57,7 @@ class OrphanReclaimer(
                 task.lockedBy = null
                 task.lockedAt = null
                 task.lockTimeoutAt = null
-                // Do NOT increment attempt counter — lock timeout is not a failure (PRD §6.3)
+                // Do NOT increment attempt counter — lock timeout is not a failure (see ADR-007)
                 taskRepository.save(task)
 
                 log.info(

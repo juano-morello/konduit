@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * REST controller for worker management (PRD §5.4).
+ * REST controller for worker management (/api/v1/workers).
  */
 @RestController
 @RequestMapping("/api/v1/workers")

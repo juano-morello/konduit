@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Size
 import java.util.UUID
 
 /**
- * Request to trigger a new workflow execution (PRD §5.2).
+ * Request to trigger a new workflow execution via POST /api/v1/executions.
  */
 data class TriggerExecutionRequest(
     @field:NotBlank(message = "workflowName must not be blank")
@@ -19,7 +19,7 @@ data class TriggerExecutionRequest(
 )
 
 /**
- * Request to batch-reprocess dead letters (PRD §5.3).
+ * Request to batch-reprocess dead letters via POST /api/v1/dead-letters/reprocess-batch.
  */
 data class BatchReprocessRequest(
     @field:Size(max = 255, message = "workflowName must be at most 255 characters")

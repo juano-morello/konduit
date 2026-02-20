@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*
 import java.util.UUID
 
 /**
- * REST controller for dead letter management (PRD §5.3).
+ * REST controller for dead letter management (/api/v1/dead-letters).
  */
 @RestController
 @RequestMapping("/api/v1/dead-letters")

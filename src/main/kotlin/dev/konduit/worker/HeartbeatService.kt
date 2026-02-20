@@ -7,7 +7,7 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 
 /**
- * Scheduled service that periodically sends heartbeat updates for this worker (PRD §7.1).
+ * Scheduled service that periodically sends heartbeat updates for this worker.
  *
  * Updates the worker's last_heartbeat timestamp and active_tasks count in the database.
  * Also detects stale workers whose heartbeats have expired and reclaims their tasks.

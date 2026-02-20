@@ -3,7 +3,7 @@ package dev.konduit.api.dto
 import java.time.Instant
 
 /**
- * Standard error response format (PRD §5.5).
+ * Standard error response format returned by [GlobalExceptionHandler] for all API errors.
  */
 data class ErrorResponse(
     val status: Int,

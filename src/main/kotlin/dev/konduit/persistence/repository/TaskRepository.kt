@@ -13,7 +13,7 @@ import java.util.UUID
 interface TaskRepository : JpaRepository<TaskEntity, UUID> {
 
     /**
-     * CRITICAL: SKIP LOCKED task acquisition (PRD §6.1).
+     * CRITICAL: SKIP LOCKED task acquisition (see [ADR-001](docs/adr/001-postgres-skip-locked.md)).
      * Acquires up to [limit] PENDING tasks that are ready to execute,
      * locking them to prevent other workers from picking them up.
      */
@@ -39,7 +39,7 @@ interface TaskRepository : JpaRepository<TaskEntity, UUID> {
     fun findByExecutionIdAndParallelGroup(executionId: UUID, parallelGroup: String): List<TaskEntity>
 
     /**
-     * Find orphaned tasks: LOCKED tasks whose lock has timed out (PRD §6.3).
+     * Find orphaned tasks: LOCKED tasks whose lock has timed out (see [ADR-007](docs/adr/007-orphan-reclamation.md)).
      */
     @Query(
         value = """

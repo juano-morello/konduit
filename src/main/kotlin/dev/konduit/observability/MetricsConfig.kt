@@ -16,7 +16,7 @@ import java.time.Duration
 import java.time.Instant
 
 /**
- * Registers custom Micrometer gauges for Konduit observability (PRD §8.1).
+ * Registers custom Micrometer gauges for Konduit observability.
  *
  * Counters and timers are recorded inline by [MetricsService].
  * Gauges are registered here because they poll current state from the database.

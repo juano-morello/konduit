@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * REST controller for workflow definitions (PRD §5.1).
+ * REST controller for workflow definitions (/api/v1/workflows).
  */
 @RestController
 @RequestMapping("/api/v1/workflows")

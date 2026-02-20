@@ -7,7 +7,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * JPA entity mapping to the 'workers' table (PRD §3.4.5).
+ * JPA entity mapping to the 'workers' table.
  * Tracks registered worker instances, their health via heartbeat, and capacity.
  */
 @Entity

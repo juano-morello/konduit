@@ -2,7 +2,7 @@ package dev.konduit.retry
 
 /**
  * Backoff strategies for retry delay calculation.
- * See PRD §4.5 for specification.
+ * See [ADR-003](docs/adr/003-retry-backoff-jitter.md) for rationale on jitter and strategy selection.
  */
 enum class BackoffStrategy {
     /** Constant delay between retries: delay = baseDelay */
