@@ -31,7 +31,11 @@ data class ExecutionResponse(
     @Schema(description = "Timestamp when the execution started running", nullable = true)
     val startedAt: Instant?,
     @Schema(description = "Timestamp when the execution completed", nullable = true)
-    val completedAt: Instant?
+    val completedAt: Instant?,
+    @Schema(description = "Webhook callback URL for terminal state notifications", nullable = true)
+    val callbackUrl: String? = null,
+    @Schema(description = "Webhook delivery status: NONE, PENDING, DELIVERED, or FAILED", nullable = true)
+    val callbackStatus: String? = null
 ) {
     companion object {
         fun from(entity: ExecutionEntity) = ExecutionResponse(
@@ -45,7 +49,9 @@ data class ExecutionResponse(
             currentStep = entity.currentStep,
             createdAt = entity.createdAt,
             startedAt = entity.startedAt,
-            completedAt = entity.completedAt
+            completedAt = entity.completedAt,
+            callbackUrl = entity.callbackUrl,
+            callbackStatus = entity.callbackStatus
         )
     }
 }
@@ -77,6 +83,8 @@ data class TaskResponse(
     val maxAttempts: Int,
     @Schema(description = "Error message if the task failed", nullable = true)
     val error: String?,
+    @Schema(description = "Task priority (0-100). Higher values are processed first.")
+    val priority: Int,
     @Schema(description = "Timestamp when the task was created")
     val createdAt: Instant,
     @Schema(description = "Timestamp when the task completed", nullable = true)
@@ -95,6 +103,7 @@ data class TaskResponse(
             attempt = entity.attempt,
             maxAttempts = entity.maxAttempts,
             error = entity.error,
+            priority = entity.priority,
             createdAt = entity.createdAt,
             completedAt = entity.completedAt
         )

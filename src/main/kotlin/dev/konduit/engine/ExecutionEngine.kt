@@ -43,6 +43,9 @@ class ExecutionEngine(
     @Autowired(required = false)
     private var metricsService: MetricsService? = null
 
+    @Autowired(required = false)
+    private var webhookService: WebhookService? = null
+
     private val log = LoggerFactory.getLogger(ExecutionEngine::class.java)
 
     /**
@@ -64,7 +67,9 @@ class ExecutionEngine(
     fun triggerExecution(
         workflowName: String,
         input: Map<String, Any>?,
-        idempotencyKey: String? = null
+        idempotencyKey: String? = null,
+        callbackUrl: String? = null,
+        priority: Int = 0
     ): ExecutionEntity {
         // Idempotency check
         if (idempotencyKey != null) {
@@ -97,7 +102,8 @@ class ExecutionEngine(
             status = ExecutionStatus.PENDING,
             input = input,
             idempotencyKey = idempotencyKey,
-            currentStep = workflowDef.steps.first().name
+            currentStep = workflowDef.steps.first().name,
+            callbackUrl = callbackUrl
         )
         val savedExecution = executionRepository.save(execution)
 
@@ -110,7 +116,8 @@ class ExecutionEngine(
         taskDispatcher.createFirstTask(
             executionId = requireNotNull(savedExecution.id) { "Saved execution ID must not be null" },
             workflowDefinition = workflowDef,
-            input = input
+            input = input,
+            defaultPriority = priority
         )
 
         // Transition to RUNNING
@@ -453,6 +460,7 @@ class ExecutionEngine(
         executionRepository.save(execution)
 
         metricsService?.recordExecutionCancelled(execution.workflowName)
+        webhookService?.deliverWebhook(execution)
 
         log.info("Execution {} cancelled", executionId)
         return execution
@@ -463,6 +471,7 @@ class ExecutionEngine(
             Duration.between(execution.startedAt, Instant.now())
         } else null
         metricsService?.recordExecutionCompleted(execution.workflowName, duration ?: Duration.ZERO)
+        webhookService?.deliverWebhook(execution)
     }
 
     private fun recordExecutionFailure(execution: ExecutionEntity) {
@@ -470,6 +479,7 @@ class ExecutionEngine(
             Duration.between(execution.startedAt, Instant.now())
         } else null
         metricsService?.recordExecutionFailed(execution.workflowName, duration)
+        webhookService?.deliverWebhook(execution)
     }
 }
 

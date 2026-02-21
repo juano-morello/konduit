@@ -1,6 +1,8 @@
 package dev.konduit.api.dto
 
 import io.swagger.v3.oas.annotations.media.Schema
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import java.util.UUID
@@ -20,7 +22,16 @@ data class TriggerExecutionRequest(
 
     @field:Size(max = 255, message = "idempotencyKey must be at most 255 characters")
     @Schema(description = "Optional idempotency key to prevent duplicate executions", nullable = true)
-    val idempotencyKey: String? = null
+    val idempotencyKey: String? = null,
+
+    @field:Size(max = 2048, message = "callbackUrl must be at most 2048 characters")
+    @Schema(description = "Optional webhook URL to receive a POST notification when the execution reaches a terminal state", nullable = true)
+    val callbackUrl: String? = null,
+
+    @field:Min(0, message = "priority must be at least 0")
+    @field:Max(100, message = "priority must be at most 100")
+    @Schema(description = "Task priority (0-100). Higher values are processed first. Default is 0.", example = "0")
+    val priority: Int = 0
 )
 
 /**

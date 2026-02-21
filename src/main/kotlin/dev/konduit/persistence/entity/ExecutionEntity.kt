@@ -57,6 +57,12 @@ class ExecutionEntity(
     @Column(name = "completed_at")
     var completedAt: Instant? = null,
 
+    @Column(name = "callback_url", length = 2048)
+    var callbackUrl: String? = null,
+
+    @Column(name = "callback_status", length = 20)
+    var callbackStatus: String = "NONE",
+
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now(),
 

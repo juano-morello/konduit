@@ -47,7 +47,9 @@ class ExecutionController(
         val execution = executionEngine.triggerExecution(
             workflowName = request.workflowName,
             input = request.input,
-            idempotencyKey = request.idempotencyKey
+            idempotencyKey = request.idempotencyKey,
+            callbackUrl = request.callbackUrl,
+            priority = request.priority
         )
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ExecutionResponse.from(execution))

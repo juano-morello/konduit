@@ -19,7 +19,8 @@ import java.time.Instant
 @Component
 class ExecutionTimeoutChecker(
     private val executionRepository: ExecutionRepository,
-    private val stateMachine: ExecutionStateMachine
+    private val stateMachine: ExecutionStateMachine,
+    private val webhookService: WebhookService
 ) {
 
     private val log = LoggerFactory.getLogger(ExecutionTimeoutChecker::class.java)
@@ -44,6 +45,7 @@ class ExecutionTimeoutChecker(
                 execution.error = "Execution timed out at ${execution.timeoutAt}"
                 stateMachine.transition(execution, ExecutionStatus.TIMED_OUT)
                 executionRepository.save(execution)
+                webhookService.deliverWebhook(execution)
                 count++
                 log.warn(
                     "Execution {} timed out: timeoutAt={}, now={}",
