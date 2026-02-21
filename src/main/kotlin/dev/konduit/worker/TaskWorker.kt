@@ -184,8 +184,8 @@ class TaskWorker(
             }
 
             val concurrency = properties.worker.concurrency
-            // Account for both active tasks and prefetched tasks waiting in buffer
-            val availableCapacity = concurrency - taskWorkerState.activeTaskCount - prefetchBuffer.size
+            // Worker capacity is based on active tasks only — prefetch buffer is drained in Phase 1
+            val availableCapacity = concurrency - taskWorkerState.activeTaskCount
             if (availableCapacity <= 0) {
                 return
             }
