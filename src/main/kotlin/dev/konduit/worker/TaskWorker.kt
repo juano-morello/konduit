@@ -111,8 +111,10 @@ class TaskWorker(
         // Register in the database
         workerRegistry.register(workerId, hostname, concurrency)
 
-        // Create thread pool for task execution
-        taskExecutor = Executors.newFixedThreadPool(concurrency)
+        // Create virtual thread executor for task execution (JVM 21 / Project Loom)
+        // Virtual threads are lightweight and scale to thousands without OS thread limits.
+        // Concurrency is still bounded by activeTaskCount checks in pollAndExecute().
+        taskExecutor = Executors.newVirtualThreadPerTaskExecutor()
 
         // Create virtual thread executor for async task advancement (JVM 21 / Project Loom)
         advancementExecutor = Executors.newVirtualThreadPerTaskExecutor()
