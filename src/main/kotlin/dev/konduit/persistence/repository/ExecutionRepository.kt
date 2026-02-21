@@ -4,7 +4,9 @@ import dev.konduit.persistence.entity.ExecutionEntity
 import dev.konduit.persistence.entity.ExecutionStatus
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
+import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
@@ -52,5 +54,14 @@ interface ExecutionRepository : JpaRepository<ExecutionEntity, UUID> {
      */
     @Query("SELECT e.status, COUNT(e) FROM ExecutionEntity e GROUP BY e.status")
     fun countGroupByStatus(): List<Array<Any>>
+
+    /**
+     * Find execution by ID with pessimistic write lock (SELECT FOR UPDATE).
+     * Used to serialize parallel fan-in checks — prevents race condition where
+     * concurrent task completions each see incomplete parallel groups.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM ExecutionEntity e WHERE e.id = :id")
+    fun findByIdForUpdate(@Param("id") id: UUID): ExecutionEntity?
 }
 

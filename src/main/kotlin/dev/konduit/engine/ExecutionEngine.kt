@@ -166,10 +166,17 @@ class ExecutionEngine(
 
         // Handle parallel tasks: check fan-in before advancing
         if (task.stepType == StepType.PARALLEL && task.parallelGroup != null) {
-            if (!taskDispatcher.isParallelGroupComplete(
-                    requireNotNull(execution.id) { "Execution ID must not be null" },
-                    requireNotNull(task.parallelGroup) { "Parallel group must not be null for parallel task" }
-                )) {
+            val executionId = requireNotNull(execution.id) { "Execution ID must not be null" }
+            val parallelGroup = requireNotNull(task.parallelGroup) { "Parallel group must not be null for parallel task" }
+
+            // Acquire pessimistic lock on execution row to serialize fan-in checks.
+            // Without this lock, concurrent parallel task completions can each see
+            // incomplete parallel groups (READ COMMITTED isolation), causing none
+            // to trigger advancement.
+            val lockedExecution = executionRepository.findByIdForUpdate(executionId)
+                ?: throw IllegalStateException("Execution $executionId not found during fan-in check")
+
+            if (!taskDispatcher.isParallelGroupComplete(executionId, parallelGroup)) {
                 log.info(
                     "Parallel task {} (step '{}', group '{}') completed, but group not yet complete. Waiting for fan-in.",
                     taskId, task.stepName, task.parallelGroup
@@ -180,10 +187,8 @@ class ExecutionEngine(
             // Fan-in complete — collect outputs and advance
             log.info(
                 "Fan-in complete for execution {}, parallel group '{}'",
-                execution.id, task.parallelGroup
+                lockedExecution.id, task.parallelGroup
             )
-            val executionId = requireNotNull(execution.id) { "Execution ID must not be null" }
-            val parallelGroup = requireNotNull(task.parallelGroup) { "Parallel group must not be null for parallel task" }
             val parallelOutputs = taskDispatcher.collectParallelOutputs(executionId, parallelGroup)
 
             val nextTask = taskDispatcher.dispatchNext(
@@ -195,18 +200,18 @@ class ExecutionEngine(
             )
 
             if (nextTask != null) {
-                execution.currentStep = nextTask.stepName
-                executionRepository.save(execution)
-                log.info("Execution {} advanced past parallel block to step '{}'", execution.id, nextTask.stepName)
+                lockedExecution.currentStep = nextTask.stepName
+                executionRepository.save(lockedExecution)
+                log.info("Execution {} advanced past parallel block to step '{}'", lockedExecution.id, nextTask.stepName)
             } else {
                 // Parallel block was the last element — use aggregated outputs
                 @Suppress("UNCHECKED_CAST")
-                execution.output = parallelOutputs as? Map<String, Any>
-                execution.currentStep = null
-                stateMachine.transition(execution, ExecutionStatus.COMPLETED)
-                executionRepository.save(execution)
-                recordExecutionCompletion(execution)
-                log.info("Execution {} completed successfully after parallel block", execution.id)
+                lockedExecution.output = parallelOutputs as? Map<String, Any>
+                lockedExecution.currentStep = null
+                stateMachine.transition(lockedExecution, ExecutionStatus.COMPLETED)
+                executionRepository.save(lockedExecution)
+                recordExecutionCompletion(lockedExecution)
+                log.info("Execution {} completed successfully after parallel block", lockedExecution.id)
             }
             return
         }
@@ -338,6 +343,11 @@ class ExecutionEngine(
             val executionId = requireNotNull(execution.id) { "Execution ID must not be null" }
             val parallelGroup = requireNotNull(task.parallelGroup) { "Parallel group must not be null for parallel task" }
 
+            // Acquire pessimistic lock on execution row to serialize fan-in checks
+            // (same rationale as onTaskCompleted — prevents READ COMMITTED race)
+            val lockedExecution = executionRepository.findByIdForUpdate(executionId)
+                ?: throw IllegalStateException("Execution $executionId not found during fan-in check")
+
             // Check if all parallel tasks are now in terminal states
             if (!taskDispatcher.isParallelGroupComplete(executionId, parallelGroup)) {
                 log.info(
@@ -350,14 +360,14 @@ class ExecutionEngine(
             // Fan-in complete (with partial failures) — advance with partial results
             log.info(
                 "Fan-in complete for execution {} (with failures), parallel group '{}'",
-                execution.id, task.parallelGroup
+                lockedExecution.id, task.parallelGroup
             )
 
             val workflowDef = workflowRegistry.findByNameAndVersion(
-                execution.workflowName, execution.workflowVersion
+                lockedExecution.workflowName, lockedExecution.workflowVersion
             ) ?: throw IllegalStateException(
-                "Workflow '${execution.workflowName}' v${execution.workflowVersion} " +
-                    "not found in registry for execution ${execution.id}"
+                "Workflow '${lockedExecution.workflowName}' v${lockedExecution.workflowVersion} " +
+                    "not found in registry for execution ${lockedExecution.id}"
             )
 
             val parallelOutputs = taskDispatcher.collectParallelOutputs(executionId, parallelGroup)
@@ -371,23 +381,23 @@ class ExecutionEngine(
             )
 
             if (nextTask != null) {
-                execution.currentStep = nextTask.stepName
-                executionRepository.save(execution)
+                lockedExecution.currentStep = nextTask.stepName
+                executionRepository.save(lockedExecution)
                 log.info(
                     "Execution {} advanced past parallel block (with failures) to step '{}'",
-                    execution.id, nextTask.stepName
+                    lockedExecution.id, nextTask.stepName
                 )
             } else {
                 // Parallel block was the last element
                 @Suppress("UNCHECKED_CAST")
-                execution.output = parallelOutputs as? Map<String, Any>
-                execution.currentStep = null
-                stateMachine.transition(execution, ExecutionStatus.COMPLETED)
-                executionRepository.save(execution)
-                recordExecutionCompletion(execution)
+                lockedExecution.output = parallelOutputs as? Map<String, Any>
+                lockedExecution.currentStep = null
+                stateMachine.transition(lockedExecution, ExecutionStatus.COMPLETED)
+                executionRepository.save(lockedExecution)
+                recordExecutionCompletion(lockedExecution)
                 log.info(
                     "Execution {} completed (with partial parallel failures) after parallel block",
-                    execution.id
+                    lockedExecution.id
                 )
             }
             return
