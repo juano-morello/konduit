@@ -1,0 +1,91 @@
+# docker-compose.scale.yml
+#
+# Multi-instance overlay for horizontal scaling tests.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.scale.yml up --build
+#
+# Deploys 3 Konduit worker instances sharing the same Postgres + Redis.
+# Each instance gets a unique port and hostname-based worker ID.
+
+services:
+  # Disable the single-instance app from docker-compose.yml
+  app:
+    profiles:
+      - disabled
+
+  worker-1:
+    build: .
+    container_name: konduit-worker-1
+    hostname: worker-1
+    ports:
+      - "8081:8080"
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/konduit
+      DATABASE_USERNAME: ${POSTGRES_USER:-konduit}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-konduit}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      KONDUIT_WORKER_CONCURRENCY: ${KONDUIT_WORKER_CONCURRENCY:-10}
+      KONDUIT_WORKER_POLL_INTERVAL: ${KONDUIT_WORKER_POLL_INTERVAL:-200ms}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  worker-2:
+    build: .
+    container_name: konduit-worker-2
+    hostname: worker-2
+    ports:
+      - "8082:8080"
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/konduit
+      DATABASE_USERNAME: ${POSTGRES_USER:-konduit}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-konduit}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      KONDUIT_WORKER_CONCURRENCY: ${KONDUIT_WORKER_CONCURRENCY:-10}
+      KONDUIT_WORKER_POLL_INTERVAL: ${KONDUIT_WORKER_POLL_INTERVAL:-200ms}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  worker-3:
+    build: .
+    container_name: konduit-worker-3
+    hostname: worker-3
+    ports:
+      - "8083:8080"
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/konduit
+      DATABASE_USERNAME: ${POSTGRES_USER:-konduit}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-konduit}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      KONDUIT_WORKER_CONCURRENCY: ${KONDUIT_WORKER_CONCURRENCY:-10}
+      KONDUIT_WORKER_POLL_INTERVAL: ${KONDUIT_WORKER_POLL_INTERVAL:-200ms}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
