@@ -5,6 +5,7 @@ import dev.konduit.dsl.ParallelBlock
 import dev.konduit.dsl.StepContext
 import dev.konduit.dsl.WorkflowRegistry
 import dev.konduit.engine.ExecutionAdvancer
+import dev.konduit.engine.TaskCompletionService
 import dev.konduit.observability.CorrelationFilter
 import dev.konduit.observability.MetricsService
 import dev.konduit.persistence.entity.TaskEntity
@@ -15,6 +16,7 @@ import dev.konduit.persistence.repository.TaskRepository
 import dev.konduit.queue.TaskQueue
 import dev.konduit.retry.RetryPolicy
 import jakarta.annotation.PreDestroy
+import jakarta.persistence.OptimisticLockException
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -53,6 +55,7 @@ class TaskWorker(
     private val taskRepository: TaskRepository,
     private val executionRepository: ExecutionRepository,
     private val executionAdvancer: ExecutionAdvancer,
+    private val taskCompletionService: TaskCompletionService,
     private val workflowRegistry: WorkflowRegistry,
     private val workerRegistry: WorkerRegistry,
     private val taskWorkerState: TaskWorkerState,
@@ -283,15 +286,20 @@ class TaskWorker(
                 else -> mapOf("result" to output)
             }
 
-            // Report success — pass entities through to avoid redundant DB lookups
-            taskQueue.completeTask(task, outputMap)
-            executionAdvancer.onTaskCompleted(task, execution)
+            // Atomic complete + advance: single transaction boundary
+            taskCompletionService.completeAndAdvance(task, execution, outputMap)
 
             // Record task completion metrics
             val duration = Duration.between(taskStartTime, Instant.now())
             metricsService?.recordTaskCompleted(execution.workflowName, task.stepName, duration)
 
             log.info("Task {} completed successfully: step '{}'", taskId, task.stepName)
+        } catch (e: OptimisticLockException) {
+            // Another worker already completed or modified this task concurrently — safe to skip
+            log.warn(
+                "Optimistic lock conflict on task {}: step '{}' — task was already processed by another worker",
+                taskId, task.stepName
+            )
         } catch (e: Exception) {
             log.error("Task {} failed: step '{}', error: {}", taskId, task.stepName, e.message, e)
 

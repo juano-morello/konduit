@@ -1,6 +1,5 @@
 package dev.konduit.queue
 
-import dev.konduit.persistence.entity.TaskStatus
 import dev.konduit.persistence.repository.TaskRepository
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -19,10 +18,9 @@ import java.time.Instant
  * another worker. The attempt counter is NOT incremented because a lock timeout
  * is not a task failure — the task may not have started executing.
  *
- * Runs on all instances concurrently. This is safe because [findOrphanedTasks]
- * uses `FOR UPDATE SKIP LOCKED`, so each orphaned task is claimed by exactly one
- * instance. No leader election is required — the SKIP LOCKED pattern provides
- * natural distributed coordination without additional infrastructure.
+ * Uses an atomic UPDATE with a WHERE status='LOCKED' guard so that if a slow worker
+ * completes a task between scheduling and execution, the UPDATE is a no-op for that
+ * row — eliminating the read-modify-write race condition.
  */
 @Component
 @ConditionalOnProperty(name = ["konduit.worker.auto-start"], havingValue = "true", matchIfMissing = true)
@@ -32,44 +30,23 @@ class OrphanReclaimer(
     private val log = LoggerFactory.getLogger(OrphanReclaimer::class.java)
 
     /**
-     * Find and reclaim orphaned tasks.
+     * Atomically reclaim orphaned tasks.
      *
      * Runs at a fixed rate configured by `konduit.queue.reaper-interval`.
-     * Uses SKIP LOCKED to avoid contention with other instances.
+     * Uses a single atomic UPDATE WHERE status='LOCKED' AND lock_timeout_at <= now
+     * to reset orphaned tasks to PENDING. The status guard ensures tasks that have
+     * transitioned away from LOCKED (e.g., completed by a slow worker) are not affected.
      */
     @Scheduled(fixedRateString = "\${konduit.queue.reaper-interval:PT30S}")
     @Transactional
     fun reclaimOrphanedTasks() {
         try {
             val now = Instant.now()
-            val orphanedTasks = taskRepository.findOrphanedTasks(now)
+            val reclaimedCount = taskRepository.reclaimOrphanedTasks(now)
 
-            if (orphanedTasks.isEmpty()) {
-                return
+            if (reclaimedCount > 0) {
+                log.warn("Reclaimed {} orphaned task(s)", reclaimedCount)
             }
-
-            log.warn("Found {} orphaned task(s) to reclaim", orphanedTasks.size)
-
-            for (task in orphanedTasks) {
-                val previousLockedBy = task.lockedBy
-                val previousLockTimeout = task.lockTimeoutAt
-
-                task.status = TaskStatus.PENDING
-                task.lockedBy = null
-                task.lockedAt = null
-                task.lockTimeoutAt = null
-                // Do NOT increment attempt counter — lock timeout is not a failure (see ADR-007)
-
-                log.info(
-                    "Reclaimed orphaned task {}: step '{}', was locked by '{}', lock expired at {}",
-                    task.id, task.stepName, previousLockedBy, previousLockTimeout
-                )
-            }
-
-            // Bulk save all reclaimed tasks
-            taskRepository.saveAll(orphanedTasks)
-
-            log.info("Reclaimed {} orphaned task(s)", orphanedTasks.size)
         } catch (e: Exception) {
             log.error("Error reclaiming orphaned tasks: {}", e.message, e)
         }

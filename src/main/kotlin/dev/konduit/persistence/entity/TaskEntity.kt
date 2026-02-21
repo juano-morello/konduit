@@ -96,7 +96,11 @@ class TaskEntity(
     var backoffBaseMs: Long = 1000,
 
     @Column(name = "timeout_at")
-    var timeoutAt: Instant? = null
+    var timeoutAt: Instant? = null,
+
+    @Version
+    @Column(name = "version", nullable = false)
+    var version: Long = 0
 ) {
     @PrePersist
     fun prePersist() {

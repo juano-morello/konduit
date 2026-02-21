@@ -61,7 +61,11 @@ class ExecutionEntity(
     var createdAt: Instant = Instant.now(),
 
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: Instant = Instant.now()
+    var updatedAt: Instant = Instant.now(),
+
+    @Version
+    @Column(name = "version", nullable = false)
+    var version: Long = 0
 ) {
     @PrePersist
     fun prePersist() {
