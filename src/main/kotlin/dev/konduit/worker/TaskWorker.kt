@@ -32,6 +32,7 @@ import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -87,6 +88,9 @@ class TaskWorker(
 
     /** Executor for async task completion + workflow advancement. Uses virtual threads (JVM 21). */
     private lateinit var advancementExecutor: java.util.concurrent.ExecutorService
+
+    /** Buffer for prefetched tasks — filled asynchronously to eliminate idle windows between poll cycles. */
+    private val prefetchBuffer = LinkedBlockingDeque<TaskEntity>()
 
     /**
      * Initialize and start the worker on application ready.
@@ -178,17 +182,31 @@ class TaskWorker(
             }
 
             val concurrency = properties.worker.concurrency
-            val availableCapacity = concurrency - taskWorkerState.activeTaskCount
+            // Account for both active tasks and prefetched tasks waiting in buffer
+            val availableCapacity = concurrency - taskWorkerState.activeTaskCount - prefetchBuffer.size
             if (availableCapacity <= 0) {
                 return
             }
 
             val workerId = taskWorkerState.workerId ?: return
             val batchSize = properties.queue.batchSize
-            val limit = minOf(availableCapacity, batchSize)
-            val tasks = taskQueue.acquireTasks(workerId, limit)
 
-            for (task in tasks) {
+            // Phase 1: Drain prefetch buffer first (zero-cost — no DB roundtrip)
+            val prefetched = mutableListOf<TaskEntity>()
+            prefetchBuffer.drainTo(prefetched, availableCapacity)
+
+            // Phase 2: If capacity remains, synchronous acquire for the rest
+            val remaining = minOf(availableCapacity - prefetched.size, batchSize)
+            val freshTasks = if (remaining > 0) {
+                taskQueue.acquireTasks(workerId, remaining)
+            } else {
+                emptyList()
+            }
+
+            val allTasks = prefetched + freshTasks
+
+            // Dispatch all tasks to executor
+            for (task in allTasks) {
                 taskWorkerState.incrementActiveTasks()
 
                 taskExecutor.submit {
@@ -201,8 +219,42 @@ class TaskWorker(
                     }
                 }
             }
+
+            // Phase 3: Trigger async prefetch for next poll cycle
+            triggerPrefetch()
         } catch (e: Exception) {
             log.error("Error in poll loop: {}", e.message, e)
+        }
+    }
+
+    /**
+     * Asynchronously prefetch the next batch of tasks into the buffer.
+     *
+     * Runs on a virtual thread. If the buffer already has tasks, skips to avoid
+     * over-acquisition. Prefetched tasks are LOCKED in the DB (with lock timeout)
+     * so they're safe from other workers. The lock timeout (default 5min) is far
+     * larger than the poll interval (200ms), so buffered tasks won't expire.
+     */
+    private fun triggerPrefetch() {
+        // Skip if buffer already has tasks or worker is shutting down
+        if (prefetchBuffer.isNotEmpty()) return
+        if (taskWorkerState.status.get() != WorkerLifecycleStatus.RUNNING) return
+
+        val workerId = taskWorkerState.workerId ?: return
+        val batchSize = properties.queue.batchSize
+
+        advancementExecutor.submit {
+            try {
+                val tasks = taskQueue.acquireTasks(workerId, batchSize)
+                for (task in tasks) {
+                    prefetchBuffer.offer(task)
+                }
+                if (tasks.isNotEmpty()) {
+                    log.debug("Prefetched {} tasks into buffer", tasks.size)
+                }
+            } catch (e: Exception) {
+                log.debug("Prefetch failed (will retry next poll): {}", e.message)
+            }
         }
     }
 
@@ -447,6 +499,20 @@ class TaskWorker(
                 )
                 advancementExecutor.shutdownNow()
             }
+        }
+
+        // Step 4c: Drain prefetch buffer and release prefetched tasks back to PENDING
+        val bufferedTasks = mutableListOf<TaskEntity>()
+        prefetchBuffer.drainTo(bufferedTasks)
+        if (bufferedTasks.isNotEmpty()) {
+            for (task in bufferedTasks) {
+                try {
+                    taskQueue.releaseTask(requireNotNull(task.id) { "Task ID must not be null for prefetched task" })
+                } catch (e: Exception) {
+                    log.error("Failed to release prefetched task {} during shutdown: {}", task.id, e.message)
+                }
+            }
+            log.info("Released {} prefetched task(s) from buffer during shutdown", bufferedTasks.size)
         }
 
         // Step 5: Release any remaining locked tasks
