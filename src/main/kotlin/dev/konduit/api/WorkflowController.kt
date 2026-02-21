@@ -5,6 +5,10 @@ import dev.konduit.api.dto.WorkflowResponse
 import dev.konduit.dsl.WorkflowDefinition
 import dev.konduit.dsl.WorkflowRegistry
 import dev.konduit.persistence.repository.WorkflowRepository
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -16,14 +20,14 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 @RequestMapping("/api/v1/workflows")
+@Tag(name = "Workflows", description = "Workflow definition management")
 class WorkflowController(
     private val workflowRegistry: WorkflowRegistry,
     private val workflowRepository: WorkflowRepository
 ) {
 
-    /**
-     * List all registered workflows.
-     */
+    @Operation(summary = "List registered workflows")
+    @ApiResponse(responseCode = "200", description = "List of all registered workflow definitions")
     @GetMapping
     fun listWorkflows(): ResponseEntity<List<WorkflowResponse>> {
         val definitions = workflowRegistry.getAll()
@@ -31,9 +35,11 @@ class WorkflowController(
         return ResponseEntity.ok(responses)
     }
 
-    /**
-     * Get a workflow by name (latest version).
-     */
+    @Operation(summary = "Get workflow by name")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Workflow definition found"),
+        ApiResponse(responseCode = "404", description = "Workflow not found")
+    ])
     @GetMapping("/{name}")
     fun getWorkflow(@PathVariable name: String): ResponseEntity<WorkflowResponse> {
         val definition = workflowRegistry.findByName(name)

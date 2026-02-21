@@ -40,6 +40,9 @@ dependencies {
     implementation("io.micrometer:micrometer-registry-prometheus")
     implementation("net.logstash.logback:logstash-logback-encoder:8.0")
 
+    // API Documentation
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4")
+
     // Configuration processor
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 

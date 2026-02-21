@@ -8,6 +8,9 @@ import dev.konduit.persistence.repository.DeadLetterRepository
 import dev.konduit.persistence.repository.ExecutionRepository
 import dev.konduit.persistence.repository.TaskRepository
 import dev.konduit.persistence.repository.WorkerRepository
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -20,6 +23,7 @@ import java.time.temporal.ChronoUnit
  */
 @RestController
 @RequestMapping("/api/v1/stats")
+@Tag(name = "Statistics", description = "System statistics and metrics")
 class StatsController(
     private val executionRepository: ExecutionRepository,
     private val taskRepository: TaskRepository,
@@ -27,13 +31,8 @@ class StatsController(
     private val deadLetterRepository: DeadLetterRepository
 ) {
 
-    /**
-     * Get comprehensive system statistics including executions, tasks,
-     * workers, dead letters, queue depth, and throughput.
-     *
-     * Optimized to use aggregate GROUP BY queries — total of 7 DB queries
-     * instead of ~18 individual countByStatus() calls.
-     */
+    @Operation(summary = "Get system statistics")
+    @ApiResponse(responseCode = "200", description = "System statistics including executions, tasks, workers, and throughput")
     @GetMapping
     fun getStats(): ResponseEntity<StatsResponse> {
         // Execution stats: single GROUP BY query (replaces 6 individual countByStatus calls)

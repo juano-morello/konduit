@@ -10,6 +10,10 @@ import dev.konduit.engine.ExecutionEngine
 import dev.konduit.persistence.entity.ExecutionStatus
 import dev.konduit.persistence.repository.ExecutionRepository
 import dev.konduit.persistence.repository.TaskRepository
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
+import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -23,15 +27,19 @@ import java.util.UUID
  */
 @RestController
 @RequestMapping("/api/v1/executions")
+@Tag(name = "Executions", description = "Workflow execution management")
 class ExecutionController(
     private val executionEngine: ExecutionEngine,
     private val executionRepository: ExecutionRepository,
     private val taskRepository: TaskRepository
 ) {
 
-    /**
-     * Trigger a new workflow execution.
-     */
+    @Operation(summary = "Trigger a new workflow execution")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "201", description = "Execution created successfully"),
+        ApiResponse(responseCode = "400", description = "Invalid request body"),
+        ApiResponse(responseCode = "404", description = "Workflow not found")
+    ])
     @PostMapping
     fun triggerExecution(
         @Valid @RequestBody request: TriggerExecutionRequest
@@ -45,9 +53,11 @@ class ExecutionController(
             .body(ExecutionResponse.from(execution))
     }
 
-    /**
-     * Get an execution by ID.
-     */
+    @Operation(summary = "Get execution by ID")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Execution found"),
+        ApiResponse(responseCode = "404", description = "Execution not found")
+    ])
     @GetMapping("/{id}")
     fun getExecution(@PathVariable id: UUID): ResponseEntity<ExecutionResponse> {
         val execution = executionRepository.findById(id)
@@ -55,9 +65,8 @@ class ExecutionController(
         return ResponseEntity.ok(ExecutionResponse.from(execution))
     }
 
-    /**
-     * List executions with optional filters and pagination.
-     */
+    @Operation(summary = "List executions (paginated, filterable)")
+    @ApiResponse(responseCode = "200", description = "Paginated list of executions")
     @GetMapping
     fun listExecutions(
         @RequestParam(required = false) status: ExecutionStatus?,
@@ -86,9 +95,11 @@ class ExecutionController(
         return ResponseEntity.ok(response)
     }
 
-    /**
-     * List tasks for an execution.
-     */
+    @Operation(summary = "Get tasks for an execution")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "List of tasks for the execution"),
+        ApiResponse(responseCode = "404", description = "Execution not found")
+    ])
     @GetMapping("/{id}/tasks")
     fun getExecutionTasks(@PathVariable id: UUID): ResponseEntity<List<TaskResponse>> {
         // Verify execution exists
@@ -99,9 +110,11 @@ class ExecutionController(
         return ResponseEntity.ok(tasks.map { TaskResponse.from(it) })
     }
 
-    /**
-     * Get the execution timeline with step-level detail.
-     */
+    @Operation(summary = "Get execution timeline")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Execution timeline with step-level detail"),
+        ApiResponse(responseCode = "404", description = "Execution not found")
+    ])
     @GetMapping("/{id}/timeline")
     fun getExecutionTimeline(@PathVariable id: UUID): ResponseEntity<TimelineResponse> {
         val execution = executionRepository.findById(id)
@@ -148,9 +161,12 @@ class ExecutionController(
         return ResponseEntity.ok(timeline)
     }
 
-    /**
-     * Cancel a running execution.
-     */
+    @Operation(summary = "Cancel a running execution")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Execution cancelled successfully"),
+        ApiResponse(responseCode = "404", description = "Execution not found"),
+        ApiResponse(responseCode = "409", description = "Execution is not in a cancellable state")
+    ])
     @PostMapping("/{id}/cancel")
     fun cancelExecution(@PathVariable id: UUID): ResponseEntity<ExecutionResponse> {
         val execution = executionEngine.cancelExecution(id)
