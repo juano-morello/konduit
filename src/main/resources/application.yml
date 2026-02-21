@@ -11,6 +11,7 @@ spring:
       minimum-idle: 10
       connection-timeout: 10000
       validation-timeout: 5000
+      register-mbeans: true
 
   jpa:
     hibernate:
@@ -92,6 +93,13 @@ konduit:
     enabled: true
   logging:
     include-payload: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
 
 logging:
   level:

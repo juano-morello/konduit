@@ -65,9 +65,11 @@ class HealthConfig {
     @Bean
     fun queueHealthIndicator(taskRepository: TaskRepository): HealthIndicator {
         return HealthIndicator {
-            val pendingCount = taskRepository.countByStatus(TaskStatus.PENDING)
-            val lockedCount = taskRepository.countByStatus(TaskStatus.LOCKED)
-            val runningCount = taskRepository.countByStatus(TaskStatus.RUNNING)
+            val statusCounts = taskRepository.countGroupByStatus()
+                .associate { row -> (row[0] as TaskStatus) to (row[1] as Long) }
+            val pendingCount = statusCounts[TaskStatus.PENDING] ?: 0L
+            val lockedCount = statusCounts[TaskStatus.LOCKED] ?: 0L
+            val runningCount = statusCounts[TaskStatus.RUNNING] ?: 0L
 
             Health.up()
                 .withDetail("pendingTasks", pendingCount)
