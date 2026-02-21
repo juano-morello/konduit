@@ -31,6 +31,54 @@ interface TaskRepository : JpaRepository<TaskEntity, UUID> {
     )
     fun acquireTasks(@Param("limit") limit: Int): List<TaskEntity>
 
+    /**
+     * Atomic task acquisition: SELECT + UPDATE + RETURN in a single SQL statement.
+     *
+     * Uses a CTE to:
+     * 1. SELECT eligible PENDING tasks with FOR UPDATE SKIP LOCKED
+     * 2. UPDATE them to LOCKED status with worker metadata
+     * 3. RETURN the fully updated rows as managed entities
+     *
+     * This eliminates the 2-step acquire+saveAll pattern, reducing from 2 DB
+     * roundtrips to 1 and removing the window between SELECT and UPDATE.
+     *
+     * The version column is incremented in SQL to maintain optimistic locking
+     * consistency. RETURNING t.* provides post-UPDATE state so Hibernate loads
+     * entities with the correct incremented version.
+     */
+    @Query(
+        value = """
+            WITH acquired AS (
+                SELECT id FROM tasks
+                WHERE status = 'PENDING'
+                  AND (next_retry_at IS NULL OR next_retry_at <= now())
+                ORDER BY created_at ASC
+                LIMIT :limit
+                FOR UPDATE SKIP LOCKED
+            ),
+            updated AS (
+                UPDATE tasks t
+                SET status = 'LOCKED',
+                    locked_by = :workerId,
+                    locked_at = :now,
+                    lock_timeout_at = :lockTimeoutAt,
+                    updated_at = :now,
+                    version = version + 1
+                FROM acquired a
+                WHERE t.id = a.id
+                RETURNING t.*
+            )
+            SELECT * FROM updated
+        """,
+        nativeQuery = true
+    )
+    fun acquireAndLockTasks(
+        @Param("limit") limit: Int,
+        @Param("workerId") workerId: String,
+        @Param("now") now: Instant,
+        @Param("lockTimeoutAt") lockTimeoutAt: Instant
+    ): List<TaskEntity>
+
     fun findByExecutionId(executionId: UUID): List<TaskEntity>
 
     fun findByExecutionIdOrderByStepOrderAsc(executionId: UUID): List<TaskEntity>

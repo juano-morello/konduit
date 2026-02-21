@@ -63,34 +63,26 @@ class TaskQueue(
     @Transactional
     fun acquireTasks(workerId: String, limit: Int): List<TaskEntity> {
         val acquireStart = Instant.now()
-        val tasks = taskRepository.acquireTasks(limit)
-        if (tasks.isEmpty()) {
-            return emptyList()
-        }
-
         val now = Instant.now()
-        val lockTimeout = properties.queue.lockTimeout
+        val lockTimeoutAt = now.plus(properties.queue.lockTimeout)
 
-        tasks.forEach { task ->
-            task.status = TaskStatus.LOCKED
-            task.lockedBy = workerId
-            task.lockedAt = now
-            task.lockTimeoutAt = now.plus(lockTimeout)
+        // Atomic: SELECT eligible tasks + UPDATE to LOCKED + RETURN — single SQL roundtrip
+        val tasks = taskRepository.acquireAndLockTasks(limit, workerId, now, lockTimeoutAt)
 
-            log.debug(
-                "Task acquired: taskId={}, stepName={}, workerId={}, lockTimeout={}",
-                task.id, task.stepName, workerId, lockTimeout
-            )
+        if (tasks.isNotEmpty()) {
+            tasks.forEach { task ->
+                log.debug(
+                    "Task acquired: taskId={}, stepName={}, workerId={}, lockTimeoutAt={}",
+                    task.id, task.stepName, workerId, lockTimeoutAt
+                )
+            }
+            log.info("Acquired {} tasks for worker {}", tasks.size, workerId)
         }
-
-        val lockedTasks = taskRepository.saveAll(tasks)
-
-        log.info("Acquired {} tasks for worker {}", lockedTasks.size, workerId)
 
         // Record acquisition duration
         metricsService?.recordTaskAcquisitionDuration(Duration.between(acquireStart, Instant.now()))
 
-        return lockedTasks
+        return tasks
     }
 
     /**
