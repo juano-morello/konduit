@@ -85,6 +85,9 @@ class TaskWorker(
     /** The Redis channel topic for unsubscription during shutdown. */
     private var redisChannelTopic: ChannelTopic? = null
 
+    /** Executor for async task completion + workflow advancement. Uses virtual threads (JVM 21). */
+    private lateinit var advancementExecutor: java.util.concurrent.ExecutorService
+
     /**
      * Initialize and start the worker on application ready.
      */
@@ -106,6 +109,9 @@ class TaskWorker(
 
         // Create thread pool for task execution
         taskExecutor = Executors.newFixedThreadPool(concurrency)
+
+        // Create virtual thread executor for async task advancement (JVM 21 / Project Loom)
+        advancementExecutor = Executors.newVirtualThreadPerTaskExecutor()
 
         // Start poll loop
         pollScheduler = Executors.newSingleThreadScheduledExecutor { r ->
@@ -286,20 +292,49 @@ class TaskWorker(
                 else -> mapOf("result" to output)
             }
 
-            // Atomic complete + advance: single transaction boundary
-            taskCompletionService.completeAndAdvance(task, execution, outputMap)
+            // Clear MDC on worker thread before offloading to async executor
+            CorrelationFilter.clearTaskContext()
 
-            // Record task completion metrics
-            val duration = Duration.between(taskStartTime, Instant.now())
-            metricsService?.recordTaskCompleted(execution.workflowName, task.stepName, duration)
+            // Offload completion + advancement to async executor to free worker thread immediately.
+            // The atomic transaction (completeAndAdvance) runs on a virtual thread while this
+            // worker thread becomes available for the next task handler invocation.
+            val capturedExecution = execution
+            advancementExecutor.submit {
+                try {
+                    CorrelationFilter.setTaskContext(
+                        executionId = task.executionId,
+                        taskId = taskId,
+                        workerId = workerId,
+                        stepName = task.stepName,
+                        workflowName = capturedExecution.workflowName
+                    )
 
-            log.info("Task {} completed successfully: step '{}'", taskId, task.stepName)
-        } catch (e: OptimisticLockException) {
-            // Another worker already completed or modified this task concurrently — safe to skip
-            log.warn(
-                "Optimistic lock conflict on task {}: step '{}' — task was already processed by another worker",
-                taskId, task.stepName
-            )
+                    // Atomic complete + advance: single transaction boundary
+                    taskCompletionService.completeAndAdvance(task, capturedExecution, outputMap)
+
+                    // Record task completion metrics
+                    val duration = Duration.between(taskStartTime, Instant.now())
+                    metricsService?.recordTaskCompleted(capturedExecution.workflowName, task.stepName, duration)
+
+                    log.info("Task {} completed successfully: step '{}'", taskId, task.stepName)
+                } catch (e: OptimisticLockException) {
+                    // Another worker already completed or modified this task concurrently — safe to skip
+                    log.warn(
+                        "Optimistic lock conflict on task {}: step '{}' — task was already processed by another worker",
+                        taskId, task.stepName
+                    )
+                } catch (e: Exception) {
+                    log.error(
+                        "Async advancement failed for task {}: step '{}', error: {}",
+                        taskId, task.stepName, e.message, e
+                    )
+                    // Task remains in RUNNING status — orphan reclaimer or timeout checker will handle it
+                } finally {
+                    CorrelationFilter.clearTaskContext()
+                }
+            }
+
+            // Worker thread returns immediately — available for next task handler
         } catch (e: Exception) {
             log.error("Task {} failed: step '{}', error: {}", taskId, task.stepName, e.message, e)
 
@@ -396,6 +431,21 @@ class TaskWorker(
                     workerId, drainTimeoutMs
                 )
                 taskExecutor.shutdownNow()
+            }
+        }
+
+        // Step 4b: Await advancement executor termination (in-flight completions)
+        if (::advancementExecutor.isInitialized) {
+            advancementExecutor.shutdown()
+            val advTerminated = advancementExecutor.awaitTermination(drainTimeoutMs / 2, TimeUnit.MILLISECONDS)
+            if (advTerminated) {
+                log.info("Worker {} advancement executor drained successfully", workerId)
+            } else {
+                log.warn(
+                    "Worker {} advancement executor did not drain within {}ms — forcing shutdown",
+                    workerId, drainTimeoutMs / 2
+                )
+                advancementExecutor.shutdownNow()
             }
         }
 
