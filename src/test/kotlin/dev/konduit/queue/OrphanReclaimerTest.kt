@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Import
+import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -27,6 +28,7 @@ import java.util.UUID
  * auto-created in tests. We manually instantiate it here.
  */
 @Import(TestWorkflowConfig::class)
+@Transactional
 class OrphanReclaimerTest : IntegrationTestBase() {
 
     private lateinit var orphanReclaimer: OrphanReclaimer
@@ -169,6 +171,114 @@ class OrphanReclaimerTest : IntegrationTestBase() {
             assertNull(reclaimed.lockedBy)
             assertEquals(0, reclaimed.attempt)
         }
+    }
+
+    @Test
+    fun `task completed by slow worker before reclamation is not reset to PENDING`() {
+        // Simulate: a task was LOCKED with an expired lock timeout, but a slow worker
+        // completed it (LOCKED→COMPLETED) before the reclaimer runs.
+        // The atomic UPDATE WHERE status='LOCKED' should be a no-op for this task.
+        val task = taskRepository.save(
+            TaskEntity(
+                executionId = executionId,
+                stepName = "step-1",
+                stepType = StepType.SEQUENTIAL,
+                stepOrder = 0,
+                status = TaskStatus.LOCKED,
+                lockedBy = "slow-worker",
+                lockedAt = Instant.now().minus(Duration.ofMinutes(10)),
+                lockTimeoutAt = Instant.now().minus(Duration.ofMinutes(5)),
+                input = mapOf("key" to "value"),
+                attempt = 1,
+                maxAttempts = 3
+            )
+        )
+
+        // Slow worker completes the task before reclaimer runs
+        val loaded = taskRepository.findById(task.id!!).get()
+        loaded.status = TaskStatus.COMPLETED
+        loaded.output = mapOf("result" to "done")
+        loaded.completedAt = Instant.now()
+        taskRepository.save(loaded)
+
+        // Now the reclaimer runs — the task is COMPLETED, not LOCKED, so the
+        // atomic UPDATE WHERE status='LOCKED' should skip it
+        orphanReclaimer.reclaimOrphanedTasks()
+
+        val afterReclaim = taskRepository.findById(task.id!!).get()
+        assertEquals(TaskStatus.COMPLETED, afterReclaim.status,
+            "Completed task must NOT be reset to PENDING by orphan reclaimer")
+        assertEquals(mapOf("result" to "done"), afterReclaim.output,
+            "Completed task output must be preserved")
+        assertEquals(1, afterReclaim.attempt,
+            "Attempt counter must be preserved")
+    }
+
+    @Test
+    fun `concurrent reclamation and completion does not produce duplicates`() {
+        // Create multiple tasks: some will be completed by a "slow worker" concurrently
+        // with the reclaimer running. The atomic UPDATE ensures no double-processing.
+        val orphanedTask = taskRepository.save(
+            TaskEntity(
+                executionId = executionId,
+                stepName = "orphan-step",
+                stepType = StepType.SEQUENTIAL,
+                stepOrder = 0,
+                status = TaskStatus.LOCKED,
+                lockedBy = "dead-worker",
+                lockedAt = Instant.now().minus(Duration.ofMinutes(10)),
+                lockTimeoutAt = Instant.now().minus(Duration.ofMinutes(5)),
+                input = mapOf("key" to "orphan"),
+                attempt = 0,
+                maxAttempts = 3
+            )
+        )
+
+        val completedTask = taskRepository.save(
+            TaskEntity(
+                executionId = executionId,
+                stepName = "completed-step",
+                stepType = StepType.SEQUENTIAL,
+                stepOrder = 1,
+                status = TaskStatus.LOCKED,
+                lockedBy = "slow-worker",
+                lockedAt = Instant.now().minus(Duration.ofMinutes(10)),
+                lockTimeoutAt = Instant.now().minus(Duration.ofMinutes(5)),
+                input = mapOf("key" to "completed"),
+                attempt = 1,
+                maxAttempts = 3
+            )
+        )
+
+        // Slow worker completes one task before reclaimer runs
+        val loaded = taskRepository.findById(completedTask.id!!).get()
+        loaded.status = TaskStatus.COMPLETED
+        loaded.output = mapOf("result" to "success")
+        loaded.completedAt = Instant.now()
+        taskRepository.save(loaded)
+
+        // Reclaimer runs — should only reclaim the truly orphaned task
+        orphanReclaimer.reclaimOrphanedTasks()
+
+        // Verify: orphaned task was reclaimed
+        val reclaimedOrphan = taskRepository.findById(orphanedTask.id!!).get()
+        assertEquals(TaskStatus.PENDING, reclaimedOrphan.status,
+            "Truly orphaned task should be reclaimed to PENDING")
+        assertNull(reclaimedOrphan.lockedBy)
+
+        // Verify: completed task was NOT affected
+        val stillCompleted = taskRepository.findById(completedTask.id!!).get()
+        assertEquals(TaskStatus.COMPLETED, stillCompleted.status,
+            "Completed task must remain COMPLETED — no double-processing")
+        assertEquals(mapOf("result" to "success"), stillCompleted.output,
+            "Completed task output must be preserved")
+
+        // Verify: no duplicate PENDING tasks exist for the completed step
+        val allTasks = taskRepository.findByExecutionId(executionId)
+        val pendingTasks = allTasks.filter { it.status == TaskStatus.PENDING }
+        assertEquals(1, pendingTasks.size,
+            "Only the truly orphaned task should be PENDING, not the completed one")
+        assertEquals("orphan-step", pendingTasks[0].stepName)
     }
 }
 
