@@ -16,7 +16,7 @@ import dev.konduit.persistence.repository.TaskRepository
 import dev.konduit.queue.TaskQueue
 import dev.konduit.retry.RetryPolicy
 import jakarta.annotation.PreDestroy
-import jakarta.persistence.OptimisticLockException
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -274,7 +274,7 @@ class TaskWorker(
         // Mark task as RUNNING
         task.status = TaskStatus.RUNNING
         task.startedAt = taskStartTime
-        taskRepository.save(task)
+        val managedTask = taskRepository.save(task)
 
         // Cache execution reference outside try block so error path can use it
         // without a redundant DB fetch
@@ -364,14 +364,14 @@ class TaskWorker(
                     )
 
                     // Atomic complete + advance: single transaction boundary
-                    taskCompletionService.completeAndAdvance(task, capturedExecution, outputMap)
+                    taskCompletionService.completeAndAdvance(managedTask, capturedExecution, outputMap)
 
                     // Record task completion metrics
                     val duration = Duration.between(taskStartTime, Instant.now())
                     metricsService?.recordTaskCompleted(capturedExecution.workflowName, task.stepName, duration)
 
                     log.info("Task {} completed successfully: step '{}'", taskId, task.stepName)
-                } catch (e: OptimisticLockException) {
+                } catch (e: ObjectOptimisticLockingFailureException) {
                     // Another worker already completed or modified this task concurrently — safe to skip
                     log.warn(
                         "Optimistic lock conflict on task {}: step '{}' — task was already processed by another worker",
