@@ -99,11 +99,22 @@ class TaskQueue(
      * Stores the output and clears all lock fields. The caller passes the task
      * entity directly to avoid a redundant findById lookup.
      *
+     * **Status guard:** Tasks already in a terminal status (COMPLETED, DEAD_LETTER, FAILED)
+     * cannot be completed again. This prevents double-processing if a slow worker
+     * and orphan reclaimer race.
+     *
      * @param task The task entity to complete (caller already has it loaded).
      * @param output The task output to store (as a JSON-compatible map).
+     * @throws IllegalStateException if the task is already in a terminal status.
      */
     @Transactional
     fun completeTask(task: TaskEntity, output: Map<String, Any>?) {
+        if (task.status == TaskStatus.COMPLETED || task.status == TaskStatus.DEAD_LETTER || task.status == TaskStatus.FAILED) {
+            throw IllegalStateException(
+                "Cannot complete task ${task.id}: task is already in terminal status ${task.status}"
+            )
+        }
+
         task.status = TaskStatus.COMPLETED
         task.output = output
         task.completedAt = Instant.now()

@@ -6,6 +6,7 @@ import dev.konduit.persistence.entity.ExecutionEntity
 import dev.konduit.persistence.entity.ExecutionStatus
 import dev.konduit.persistence.entity.StepType
 import dev.konduit.persistence.entity.TaskEntity
+import dev.konduit.persistence.entity.TaskStatus
 import dev.konduit.persistence.repository.ExecutionRepository
 import dev.konduit.persistence.repository.TaskRepository
 import dev.konduit.persistence.repository.WorkflowRepository
@@ -136,6 +137,15 @@ class ExecutionEngine(
     @Transactional
     override fun onTaskCompleted(task: TaskEntity, execution: ExecutionEntity) {
         val taskId = requireNotNull(task.id) { "Task ID must not be null" }
+
+        // Status guard: verify task is actually COMPLETED before advancing
+        if (task.status != TaskStatus.COMPLETED) {
+            log.warn(
+                "onTaskCompleted called for task {} but status is {}, skipping advancement",
+                taskId, task.status
+            )
+            return
+        }
 
         // If execution is cancelled or in a terminal state, don't advance
         if (stateMachine.isTerminal(execution.status)) {
@@ -299,6 +309,15 @@ class ExecutionEngine(
     @Transactional
     override fun onTaskDeadLettered(task: TaskEntity, execution: ExecutionEntity) {
         val taskId = requireNotNull(task.id) { "Task ID must not be null" }
+
+        // Status guard: verify task is actually DEAD_LETTER before processing
+        if (task.status != TaskStatus.DEAD_LETTER) {
+            log.warn(
+                "onTaskDeadLettered called for task {} but status is {}, skipping",
+                taskId, task.status
+            )
+            return
+        }
 
         // If already in a terminal state, skip
         if (stateMachine.isTerminal(execution.status)) {
