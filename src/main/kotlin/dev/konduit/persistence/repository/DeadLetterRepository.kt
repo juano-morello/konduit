@@ -4,6 +4,7 @@ import dev.konduit.persistence.entity.DeadLetterEntity
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
@@ -39,5 +40,13 @@ interface DeadLetterRepository : JpaRepository<DeadLetterEntity, UUID> {
         @Param("executionId") executionId: UUID?,
         @Param("stepName") stepName: String?
     ): List<DeadLetterEntity>
+
+    /**
+     * Delete all dead letters belonging to the given execution IDs.
+     * Used by RetentionService to cascade-delete dead letters before removing executions.
+     */
+    @Modifying
+    @Query("DELETE FROM DeadLetterEntity d WHERE d.executionId IN :executionIds")
+    fun deleteByExecutionIds(@Param("executionIds") executionIds: List<UUID>): Int
 }
 

@@ -1,6 +1,7 @@
 package dev.konduit.coordination
 
 import dev.konduit.engine.ExecutionTimeoutChecker
+import dev.konduit.engine.RetentionService
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -20,7 +21,8 @@ import org.springframework.stereotype.Component
 @Component
 class LeaderOnlyScheduler(
     private val leaderElection: LeaderElectionService,
-    private val executionTimeoutChecker: ExecutionTimeoutChecker
+    private val executionTimeoutChecker: ExecutionTimeoutChecker,
+    private val retentionService: RetentionService
 ) {
 
     private val log = LoggerFactory.getLogger(LeaderOnlyScheduler::class.java)
@@ -42,6 +44,26 @@ class LeaderOnlyScheduler(
             }
         } catch (e: Exception) {
             log.error("Leader: execution timeout check failed: {}", e.message, e)
+        }
+    }
+
+    /**
+     * Periodically clean up expired terminal-state executions.
+     * Only runs on the leader instance.
+     */
+    @Scheduled(fixedRateString = "\${konduit.retention.cleanup-interval:21600000}")
+    fun cleanupExpiredExecutions() {
+        if (!leaderElection.isLeader()) {
+            return
+        }
+
+        try {
+            val count = retentionService.cleanupExpiredExecutions()
+            if (count > 0) {
+                log.info("Leader: retention cleanup deleted {} execution(s)", count)
+            }
+        } catch (e: Exception) {
+            log.error("Leader: retention cleanup failed: {}", e.message, e)
         }
     }
 }

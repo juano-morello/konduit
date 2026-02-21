@@ -58,6 +58,8 @@ konduit:
     enabled: false
   logging:
     include-payload: false
+  retention:
+    enabled: false
 
 logging:
   level:

@@ -93,6 +93,11 @@ konduit:
     enabled: true
   logging:
     include-payload: false
+  retention:
+    enabled: true
+    completed-execution-ttl: 30d
+    cleanup-interval: 21600000
+    batch-size: 500
 
 springdoc:
   api-docs:

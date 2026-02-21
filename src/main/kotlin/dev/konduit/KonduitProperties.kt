@@ -12,7 +12,8 @@ data class KonduitProperties(
     val retry: RetryDefaults = RetryDefaults(),
     val redis: RedisProperties = RedisProperties(),
     val metrics: MetricsProperties = MetricsProperties(),
-    val logging: LoggingProperties = LoggingProperties()
+    val logging: LoggingProperties = LoggingProperties(),
+    val retention: RetentionProperties = RetentionProperties()
 ) {
     data class WorkerProperties(
         /** Number of concurrent tasks a single worker can execute */
@@ -78,6 +79,17 @@ data class KonduitProperties(
     data class LoggingProperties(
         /** Whether to include request/response payloads in log output */
         val includePayload: Boolean = false
+    )
+
+    data class RetentionProperties(
+        /** Whether automatic retention cleanup is enabled */
+        val enabled: Boolean = true,
+        /** TTL for terminal-state executions (default: 30 days) */
+        val completedExecutionTtl: Duration = Duration.ofDays(30),
+        /** Interval between cleanup runs in milliseconds (default: 6 hours) */
+        val cleanupInterval: Long = 21_600_000L,
+        /** Maximum number of executions to delete per cleanup batch */
+        val batchSize: Int = 500
     )
 }
 

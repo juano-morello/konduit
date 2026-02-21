@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable
 import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
@@ -63,5 +64,30 @@ interface ExecutionRepository : JpaRepository<ExecutionEntity, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM ExecutionEntity e WHERE e.id = :id")
     fun findByIdForUpdate(@Param("id") id: UUID): ExecutionEntity?
+
+    /**
+     * Find terminal-state executions completed before a cutoff time.
+     * Used by RetentionService to identify executions eligible for cleanup.
+     */
+    @Query(
+        """
+        SELECT e FROM ExecutionEntity e
+        WHERE e.status IN :statuses
+          AND e.completedAt IS NOT NULL
+          AND e.completedAt < :cutoff
+        """
+    )
+    fun findByStatusInAndCompletedAtBefore(
+        @Param("statuses") statuses: List<ExecutionStatus>,
+        @Param("cutoff") cutoff: Instant,
+        pageable: Pageable
+    ): List<ExecutionEntity>
+
+    /**
+     * Delete executions by their IDs. Used by RetentionService for batch cleanup.
+     */
+    @Modifying
+    @Query("DELETE FROM ExecutionEntity e WHERE e.id IN :ids")
+    fun deleteByIdIn(@Param("ids") ids: List<UUID>): Int
 }
 
