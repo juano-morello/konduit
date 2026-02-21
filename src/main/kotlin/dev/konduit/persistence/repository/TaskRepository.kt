@@ -14,24 +14,6 @@ import java.util.UUID
 interface TaskRepository : JpaRepository<TaskEntity, UUID> {
 
     /**
-     * CRITICAL: SKIP LOCKED task acquisition (see [ADR-001](docs/adr/001-postgres-skip-locked.md)).
-     * Acquires up to [limit] PENDING tasks that are ready to execute,
-     * locking them to prevent other workers from picking them up.
-     */
-    @Query(
-        value = """
-            SELECT * FROM tasks 
-            WHERE status = 'PENDING' 
-              AND (next_retry_at IS NULL OR next_retry_at <= now())
-            ORDER BY created_at ASC 
-            LIMIT :limit 
-            FOR UPDATE SKIP LOCKED
-        """,
-        nativeQuery = true
-    )
-    fun acquireTasks(@Param("limit") limit: Int): List<TaskEntity>
-
-    /**
      * Atomic task acquisition: SELECT + UPDATE + RETURN in a single SQL statement.
      *
      * Uses a CTE to:

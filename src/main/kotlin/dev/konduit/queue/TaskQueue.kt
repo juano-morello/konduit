@@ -62,7 +62,6 @@ class TaskQueue(
      */
     @Transactional
     fun acquireTasks(workerId: String, limit: Int): List<TaskEntity> {
-        val acquireStart = Instant.now()
         val now = Instant.now()
         val lockTimeoutAt = now.plus(properties.queue.lockTimeout)
 
@@ -80,7 +79,7 @@ class TaskQueue(
         }
 
         // Record acquisition duration
-        metricsService?.recordTaskAcquisitionDuration(Duration.between(acquireStart, Instant.now()))
+        metricsService?.recordTaskAcquisitionDuration(Duration.between(now, Instant.now()))
 
         return tasks
     }
