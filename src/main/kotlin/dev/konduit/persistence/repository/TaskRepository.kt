@@ -34,7 +34,7 @@ interface TaskRepository : JpaRepository<TaskEntity, UUID> {
                 SELECT id FROM tasks
                 WHERE status = 'PENDING'
                   AND (next_retry_at IS NULL OR next_retry_at <= now())
-                ORDER BY created_at ASC
+                ORDER BY priority DESC, created_at ASC
                 LIMIT :limit
                 FOR UPDATE SKIP LOCKED
             ),
@@ -161,5 +161,13 @@ interface TaskRepository : JpaRepository<TaskEntity, UUID> {
      */
     @Query("SELECT t.status, COUNT(t) FROM TaskEntity t GROUP BY t.status")
     fun countGroupByStatus(): List<Array<Any>>
+
+    /**
+     * Delete all tasks belonging to the given execution IDs.
+     * Used by RetentionService to cascade-delete tasks before removing executions.
+     */
+    @Modifying
+    @Query("DELETE FROM TaskEntity t WHERE t.executionId IN :executionIds")
+    fun deleteByExecutionIds(@Param("executionIds") executionIds: List<UUID>): Int
 }
 

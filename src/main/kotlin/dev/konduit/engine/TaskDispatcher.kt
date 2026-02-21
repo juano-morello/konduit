@@ -43,15 +43,16 @@ class TaskDispatcher(
     fun createFirstTask(
         executionId: UUID,
         workflowDefinition: WorkflowDefinition,
-        input: Map<String, Any>?
+        input: Map<String, Any>?,
+        defaultPriority: Int = 0
     ): TaskEntity {
         val firstElement = workflowDefinition.elements.first()
         return when (firstElement) {
             is StepDefinition -> {
-                createSequentialTask(executionId, firstElement, 0, input)
+                createSequentialTask(executionId, firstElement, 0, input, defaultPriority)
             }
             is ParallelBlock -> {
-                val tasks = createParallelTasks(executionId, firstElement, 0, input)
+                val tasks = createParallelTasks(executionId, firstElement, 0, input, defaultPriority)
                 tasks.first()
             }
             is BranchBlock -> {
@@ -62,7 +63,7 @@ class TaskDispatcher(
                         "Branch block '${firstElement.name}' is the first element but has no previous " +
                             "output to evaluate. An 'otherwise' branch is required."
                     )
-                createBranchTask(executionId, branchSteps.first(), 0, input, firstElement.name, "otherwise")
+                createBranchTask(executionId, branchSteps.first(), 0, input, firstElement.name, "otherwise", defaultPriority)
             }
         }
     }
@@ -171,7 +172,8 @@ class TaskDispatcher(
         executionId: UUID,
         step: StepDefinition,
         elementIndex: Int,
-        input: Map<String, Any>?
+        input: Map<String, Any>?,
+        defaultPriority: Int = 0
     ): TaskEntity {
         val task = TaskEntity(
             executionId = executionId,
@@ -182,7 +184,8 @@ class TaskDispatcher(
             input = input,
             maxAttempts = step.retryPolicy.maxAttempts,
             backoffStrategy = step.retryPolicy.backoffStrategy,
-            backoffBaseMs = step.retryPolicy.baseDelayMs
+            backoffBaseMs = step.retryPolicy.baseDelayMs,
+            priority = if (step.priority > 0) step.priority else defaultPriority
         )
 
         val saved = taskRepository.save(task)
@@ -202,7 +205,8 @@ class TaskDispatcher(
         executionId: UUID,
         block: ParallelBlock,
         elementIndex: Int,
-        input: Map<String, Any>?
+        input: Map<String, Any>?,
+        defaultPriority: Int = 0
     ): List<TaskEntity> {
         val tasks = block.steps.map { step ->
             TaskEntity(
@@ -215,7 +219,8 @@ class TaskDispatcher(
                 parallelGroup = block.name,
                 maxAttempts = step.retryPolicy.maxAttempts,
                 backoffStrategy = step.retryPolicy.backoffStrategy,
-                backoffBaseMs = step.retryPolicy.baseDelayMs
+                backoffBaseMs = step.retryPolicy.baseDelayMs,
+                priority = if (step.priority > 0) step.priority else defaultPriority
             )
         }
 
@@ -286,7 +291,8 @@ class TaskDispatcher(
         elementIndex: Int,
         input: Map<String, Any>?,
         branchBlockName: String,
-        branchKey: String
+        branchKey: String,
+        defaultPriority: Int = 0
     ): TaskEntity {
         val task = TaskEntity(
             executionId = executionId,
@@ -299,7 +305,8 @@ class TaskDispatcher(
             parallelGroup = branchBlockName,
             maxAttempts = step.retryPolicy.maxAttempts,
             backoffStrategy = step.retryPolicy.backoffStrategy,
-            backoffBaseMs = step.retryPolicy.baseDelayMs
+            backoffBaseMs = step.retryPolicy.baseDelayMs,
+            priority = if (step.priority > 0) step.priority else defaultPriority
         )
 
         val saved = taskRepository.save(task)

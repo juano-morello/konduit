@@ -27,6 +27,7 @@ class StepBuilder(private val name: String) {
     private var handler: ((StepContext) -> Any?)? = null
     private var retryPolicy: RetryPolicy = RetryPolicy()
     private var timeout: Duration? = null
+    private var priority: Int = 0
 
     /**
      * Define the handler function for this step.
@@ -50,6 +51,14 @@ class StepBuilder(private val name: String) {
         timeout = duration
     }
 
+    /**
+     * Set the priority for this step's tasks. Higher values = higher priority.
+     * Valid range: 0-100. Default is 0 (normal priority).
+     */
+    fun priority(value: Int) {
+        priority = value
+    }
+
     fun build(): StepDefinition {
         val resolvedHandler = requireNotNull(handler) {
             "Step '$name' must have a handler defined"
@@ -58,7 +67,8 @@ class StepBuilder(private val name: String) {
             name = name,
             handler = resolvedHandler,
             retryPolicy = retryPolicy,
-            timeout = timeout
+            timeout = timeout,
+            priority = priority
         )
     }
 }

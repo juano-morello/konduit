@@ -17,7 +17,8 @@ data class StepDefinition(
     override val name: String,
     val handler: (StepContext) -> Any?,
     val retryPolicy: RetryPolicy = RetryPolicy(),
-    val timeout: Duration? = null
+    val timeout: Duration? = null,
+    val priority: Int = 0
 ) : WorkflowElement {
     /**
      * Returns a serializable representation of this step definition (without the handler)

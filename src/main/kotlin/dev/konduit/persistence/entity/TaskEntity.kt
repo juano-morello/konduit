@@ -98,6 +98,9 @@ class TaskEntity(
     @Column(name = "timeout_at")
     var timeoutAt: Instant? = null,
 
+    @Column(nullable = false)
+    var priority: Int = 0,
+
     @Version
     @Column(name = "version", nullable = false)
     var version: Long = 0
