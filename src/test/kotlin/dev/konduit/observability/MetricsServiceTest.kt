@@ -3,6 +3,7 @@ package dev.konduit.observability
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.*
 import org.junit.jupiter.api.Assertions.*
@@ -12,26 +13,40 @@ import java.time.Duration
 
 class MetricsServiceTest {
 
-    // ── Null registry (metrics disabled) ────────────────────────────────
+    // ── No-op registry (metrics disabled — empty CompositeMeterRegistry) ─
 
     @Nested
-    inner class NullRegistry {
+    inner class NoOpRegistry {
 
-        private val service = MetricsService(meterRegistry = null)
+        private val noOpRegistry = CompositeMeterRegistry()
+        private val service = MetricsService(meterRegistry = noOpRegistry)
 
         @Test
-        fun `recordExecutionStarted is no-op with null registry`() {
+        fun `recordExecutionStarted is no-op with empty composite registry`() {
             assertDoesNotThrow { service.recordExecutionStarted("wf") }
+            // Empty CompositeMeterRegistry creates no-op meters that don't record to any backend.
+            // The meters are tracked in the registry but produce no real data.
+            val counter = noOpRegistry.find("konduit_executions_total")
+                .tags("workflow", "wf", "status", "started")
+                .counter()
+            // Counter exists but its value is 0.0 because no child registry captures it
+            if (counter != null) assertEquals(0.0, counter.count())
         }
 
         @Test
-        fun `recordExecutionCompleted is no-op with null registry`() {
+        fun `recordExecutionCompleted is no-op with empty composite registry`() {
             assertDoesNotThrow { service.recordExecutionCompleted("wf", Duration.ofSeconds(1)) }
+            // Empty CompositeMeterRegistry creates no-op meters — timers record nothing
+            val timer = noOpRegistry.find("konduit_executions_duration_seconds")
+                .tags("workflow", "wf", "status", "completed")
+                .timer()
+            if (timer != null) assertEquals(0L, timer.count())
         }
 
         @Test
-        fun `startTimer returns null with null registry`() {
-            assertNull(service.startTimer())
+        fun `startTimer returns non-null sample even with no-op registry`() {
+            val sample = service.startTimer()
+            assertNotNull(sample)
         }
 
         @Test
@@ -40,8 +55,12 @@ class MetricsServiceTest {
         }
 
         @Test
-        fun `recordTaskAcquisitionDuration is no-op with null registry`() {
+        fun `recordTaskAcquisitionDuration is no-op with empty composite registry`() {
             assertDoesNotThrow { service.recordTaskAcquisitionDuration(Duration.ofMillis(50)) }
+            // Empty CompositeMeterRegistry creates no-op timers — nothing is actually recorded
+            val timer = noOpRegistry.find("konduit_task_acquisition_duration_seconds")
+                .timer()
+            if (timer != null) assertEquals(0L, timer.count())
         }
     }
 

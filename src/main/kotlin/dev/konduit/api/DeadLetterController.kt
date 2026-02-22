@@ -12,15 +12,19 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.http.ResponseEntity
+import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.*
 import java.util.UUID
 
 /**
  * REST controller for dead letter management (/api/v1/dead-letters).
  */
+@Validated
 @RestController
 @RequestMapping("/api/v1/dead-letters")
 @Tag(name = "Dead Letters", description = "Dead letter queue management")
@@ -35,8 +39,8 @@ class DeadLetterController(
     fun listDeadLetters(
         @RequestParam(required = false) workflowName: String?,
         @RequestParam(required = false) executionId: UUID?,
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "20") size: Int
+        @RequestParam(defaultValue = "0") @Min(0) page: Int,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int
     ): ResponseEntity<PageResponse<DeadLetterResponse>> {
         val pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
 

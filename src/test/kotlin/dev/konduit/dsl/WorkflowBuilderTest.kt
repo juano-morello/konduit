@@ -81,7 +81,7 @@ class WorkflowBuilderTest {
             }
         }
         val handler = wf.steps[0].handler
-        val ctx = StepContext(
+        val ctx = StepContext<Any?>(
             executionId = java.util.UUID.randomUUID(),
             input = mapOf("key" to "value"),
             previousOutput = null,
@@ -99,7 +99,7 @@ class WorkflowBuilderTest {
         val wf = workflow("null-handler") {
             step("noop") { handler { null } }
         }
-        val ctx = StepContext(
+        val ctx = StepContext<Any?>(
             executionId = java.util.UUID.randomUUID(),
             input = null,
             previousOutput = null,

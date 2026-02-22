@@ -15,16 +15,20 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.validation.annotation.Validated
 import java.util.UUID
 
 /**
  * REST controller for workflow executions (/api/v1/executions).
  */
+@Validated
 @RestController
 @RequestMapping("/api/v1/executions")
 @Tag(name = "Executions", description = "Workflow execution management")
@@ -73,8 +77,8 @@ class ExecutionController(
     fun listExecutions(
         @RequestParam(required = false) status: ExecutionStatus?,
         @RequestParam(required = false) workflowName: String?,
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "20") size: Int
+        @RequestParam(defaultValue = "0") @Min(0) page: Int,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int
     ): ResponseEntity<PageResponse<ExecutionResponse>> {
         val pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
 

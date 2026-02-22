@@ -6,6 +6,10 @@ import java.time.Duration
 /**
  * DSL builder for defining a single workflow step.
  *
+ * Type parameters:
+ * - [I] The input type for the step context. Defaults to [Any?] for untyped usage.
+ * - [O] The output type returned by the handler. Defaults to [Any?] for untyped usage.
+ *
  * Usage:
  * ```kotlin
  * step("validate") {
@@ -23,8 +27,8 @@ import java.time.Duration
  * ```
  */
 @KonduitDsl
-class StepBuilder(private val name: String) {
-    private var handler: ((StepContext) -> Any?)? = null
+class StepBuilder<I, O>(private val name: String) {
+    private var handler: ((StepContext<I>) -> O)? = null
     private var retryPolicy: RetryPolicy = RetryPolicy()
     private var timeout: Duration? = null
     private var priority: Int = 0
@@ -33,7 +37,7 @@ class StepBuilder(private val name: String) {
      * Define the handler function for this step.
      * The handler receives a [StepContext] and returns the step output.
      */
-    fun handler(block: (StepContext) -> Any?) {
+    fun handler(block: (StepContext<I>) -> O) {
         handler = block
     }
 
@@ -63,9 +67,13 @@ class StepBuilder(private val name: String) {
         val resolvedHandler = requireNotNull(handler) {
             "Step '$name' must have a handler defined"
         }
+        @Suppress("UNCHECKED_CAST")
+        val untypedHandler: (StepContext<Any?>) -> Any? = { ctx ->
+            resolvedHandler(ctx as StepContext<I>)
+        }
         return StepDefinition(
             name = name,
-            handler = resolvedHandler,
+            handler = untypedHandler,
             retryPolicy = retryPolicy,
             timeout = timeout,
             priority = priority

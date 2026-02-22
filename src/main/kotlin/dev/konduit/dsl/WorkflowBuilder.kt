@@ -53,9 +53,28 @@ class WorkflowBuilder(private val name: String) {
 
     /**
      * Define a sequential step in this workflow. Steps execute in the order they are defined.
+     * Uses untyped [StepContext]<[Any?]> for backward compatibility.
      */
-    fun step(name: String, block: StepBuilder.() -> Unit) {
-        elements.add(StepBuilder(name).apply(block).build())
+    fun step(name: String, block: StepBuilder<Any?, Any?>.() -> Unit) {
+        elements.add(StepBuilder<Any?, Any?>(name).apply(block).build())
+    }
+
+    /**
+     * Define a type-safe sequential step in this workflow.
+     * The handler receives a [StepContext]<[I]> and returns [O]?.
+     *
+     * Usage:
+     * ```kotlin
+     * typedStep<Map<String, Any>, String>("validate") {
+     *     handler { ctx ->
+     *         val input: Map<String, Any> = ctx.input  // typed!
+     *         "validated"
+     *     }
+     * }
+     * ```
+     */
+    fun <I, O> typedStep(name: String, block: StepBuilder<I, O>.() -> Unit) {
+        elements.add(StepBuilder<I, O>(name).apply(block).build())
     }
 
     /**

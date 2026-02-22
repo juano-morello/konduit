@@ -11,7 +11,8 @@ import java.util.concurrent.ConcurrentHashMap
  * Type-safe wrapper around Micrometer's MeterRegistry for Konduit metrics.
  *
  * Provides convenient methods for recording metrics at lifecycle points.
- * When metrics are disabled (no MeterRegistry available), all methods are no-ops.
+ * When no real registry is configured, a no-op [io.micrometer.core.instrument.composite.CompositeMeterRegistry]
+ * is injected via [dev.konduit.config.NoOpMeterRegistryConfig], so all methods safely discard metrics.
  *
  * Metric instances are cached by name+tags to avoid repeated registry lookups
  * on every call. Since tags are dynamic (workflow name, step name), a
@@ -19,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 @Service
 class MetricsService(
-    private val meterRegistry: MeterRegistry? = null
+    private val meterRegistry: MeterRegistry
 ) {
     private val counters = ConcurrentHashMap<String, Counter>()
     private val timers = ConcurrentHashMap<String, Timer>()
@@ -28,91 +29,89 @@ class MetricsService(
 
     fun recordExecutionStarted(workflow: String) {
         counter("konduit_executions_total", "workflow", workflow, "status", "started")
-            ?.increment()
+            .increment()
     }
 
     fun recordExecutionCompleted(workflow: String, duration: Duration) {
         counter("konduit_executions_total", "workflow", workflow, "status", "completed")
-            ?.increment()
+            .increment()
         timer("konduit_executions_duration_seconds", "workflow", workflow, "status", "completed")
-            ?.record(duration)
+            .record(duration)
     }
 
     fun recordExecutionFailed(workflow: String, duration: Duration?) {
         counter("konduit_executions_total", "workflow", workflow, "status", "failed")
-            ?.increment()
+            .increment()
         if (duration != null) {
             timer("konduit_executions_duration_seconds", "workflow", workflow, "status", "failed")
-                ?.record(duration)
+                .record(duration)
         }
     }
 
     fun recordExecutionCancelled(workflow: String) {
         counter("konduit_executions_total", "workflow", workflow, "status", "cancelled")
-            ?.increment()
+            .increment()
     }
 
     // --- Task metrics ---
 
     fun recordTaskCompleted(workflow: String, step: String, duration: Duration?) {
         counter("konduit_tasks_total", "workflow", workflow, "step", step, "status", "completed")
-            ?.increment()
+            .increment()
         if (duration != null) {
             timer("konduit_tasks_duration_seconds", "workflow", workflow, "step", step, "status", "completed")
-                ?.record(duration)
+                .record(duration)
         }
     }
 
     fun recordTaskFailed(workflow: String, step: String, duration: Duration?) {
         counter("konduit_tasks_total", "workflow", workflow, "step", step, "status", "failed")
-            ?.increment()
+            .increment()
         if (duration != null) {
             timer("konduit_tasks_duration_seconds", "workflow", workflow, "step", step, "status", "failed")
-                ?.record(duration)
+                .record(duration)
         }
     }
 
     fun recordTaskRetry(workflow: String, step: String) {
         counter("konduit_tasks_retry_total", "workflow", workflow, "step", step)
-            ?.increment()
+            .increment()
     }
 
     fun recordDeadLetter(workflow: String, step: String) {
         counter("konduit_dead_letters_total", "workflow", workflow, "step", step)
-            ?.increment()
+            .increment()
     }
 
     // --- Queue metrics ---
 
     fun recordTaskAcquisitionDuration(duration: Duration) {
         timer("konduit_task_acquisition_duration_seconds")
-            ?.record(duration)
+            .record(duration)
     }
 
     // --- Timer helpers ---
 
-    fun startTimer(): Timer.Sample? {
-        return meterRegistry?.let { Timer.start(it) }
+    fun startTimer(): Timer.Sample {
+        return Timer.start(meterRegistry)
     }
 
     fun stopTimer(sample: Timer.Sample?, timerName: String, vararg tags: String) {
-        if (sample != null && meterRegistry != null) {
-            sample.stop(requireNotNull(timer(timerName, *tags)) { "Timer '$timerName' must not be null when meterRegistry is available" })
+        if (sample != null) {
+            sample.stop(timer(timerName, *tags))
         }
     }
 
     // --- Internal cached lookups ---
 
-    private fun counter(name: String, vararg tags: String): Counter? {
-        val registry = meterRegistry ?: return null
+    private fun counter(name: String, vararg tags: String): Counter {
         val key = cacheKey(name, *tags)
-        return counters.computeIfAbsent(key) { registry.counter(name, *tags) }
+        return counters.computeIfAbsent(key) { meterRegistry.counter(name, *tags) }
     }
 
-    private fun timer(name: String, vararg tags: String): Timer? {
-        val registry = meterRegistry ?: return null
+    private fun timer(name: String, vararg tags: String): Timer {
         val key = cacheKey(name, *tags)
-        return timers.computeIfAbsent(key) { registry.timer(name, *tags) }
+        return timers.computeIfAbsent(key) { meterRegistry.timer(name, *tags) }
     }
 
     private fun cacheKey(name: String, vararg tags: String): String {

@@ -6,6 +6,8 @@ import java.util.UUID
  * Context object passed to step handlers during execution.
  * Provides access to step input, execution context, and parallel outputs.
  *
+ * @param I The type of the step input. Covariant (`out`) so that `StepContext<String>`
+ *           is a subtype of `StepContext<Any?>`. Defaults to [Any?] for untyped usage.
  * @property executionId Unique identifier for the current workflow execution.
  * @property input The input data for this specific step (output of the previous step,
  *                 or the workflow input for the first step).
@@ -17,9 +19,9 @@ import java.util.UUID
  * @property workflowName Name of the workflow this step belongs to.
  * @property metadata Mutable map for passing arbitrary data between steps within an execution.
  */
-data class StepContext(
+data class StepContext<out I>(
     val executionId: UUID,
-    val input: Any?,
+    val input: I,
     val previousOutput: Any?,
     val executionInput: Any?,
     val attempt: Int,
@@ -33,4 +35,9 @@ data class StepContext(
      */
     val parallelOutputs: Map<String, Any?> = emptyMap()
 )
+
+/**
+ * Type alias for backward compatibility. Represents a [StepContext] with untyped input.
+ */
+typealias UntypedStepContext = StepContext<Any?>
 

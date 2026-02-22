@@ -101,6 +101,10 @@ class TaskEntity(
     @Column(nullable = false)
     var priority: Int = 0,
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    var metadata: Map<String, Any?>? = null,
+
     @Version
     @Column(name = "version", nullable = false)
     var version: Long = 0

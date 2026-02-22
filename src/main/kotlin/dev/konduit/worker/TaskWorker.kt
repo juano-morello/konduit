@@ -323,15 +323,19 @@ class TaskWorker(
                 }
             }
 
-            // Build the StepContext
-            val context = StepContext(
+            // Build the StepContext with untyped input (JSONB deserialized data).
+            // The type parameter is erased at runtime; compile-time safety is
+            // enforced at the DSL level via StepBuilder<I, O>.
+            @Suppress("UNCHECKED_CAST")
+            val context = StepContext<Any?>(
                 executionId = task.executionId,
-                input = task.input,
+                input = task.input as Any?,
                 previousOutput = task.input,
                 executionInput = execution.input,
                 attempt = task.attempt + 1,
                 stepName = task.stepName,
                 workflowName = execution.workflowName,
+                metadata = task.metadata?.toMutableMap() ?: mutableMapOf(),
                 parallelOutputs = parallelOutputs
             )
 
@@ -344,6 +348,12 @@ class TaskWorker(
                 null -> null
                 is Map<*, *> -> output as Map<String, Any>
                 else -> mapOf("result" to output)
+            }
+
+            // Persist StepContext metadata if non-empty (survives retries)
+            if (context.metadata.isNotEmpty()) {
+                managedTask.metadata = context.metadata.toMap()
+                taskRepository.save(managedTask)
             }
 
             // Clear MDC on worker thread before offloading to async executor

@@ -40,8 +40,10 @@ class DataEnrichmentWorkflow {
                 log.info("Fetching raw data for execution {}", ctx.executionId)
                 val input = ctx.input as? Map<*, *> ?: emptyMap<String, Any>()
 
-                // Simulate fetching base data from a data store
-                Thread.sleep(100)
+                // Simulates fetching base data from a data store (e.g., database query latency)
+                val fetchStart = System.nanoTime()
+                @Suppress("unused") val entityLookup = (1..1000).sumOf { it.toLong() } // lightweight CPU work
+                log.debug("Simulated data fetch in {}µs", (System.nanoTime() - fetchStart) / 1000)
 
                 mapOf(
                     "entityId" to (input["entityId"]?.toString() ?: "UNKNOWN"),
@@ -67,8 +69,10 @@ class DataEnrichmentWorkflow {
                 handler { ctx ->
                     log.info("Enriching demographics for execution {}", ctx.executionId)
 
-                    // Simulate demographics API call
-                    Thread.sleep(150)
+                    // Simulates demographics API call latency (e.g., REST call to external service)
+                    val demoStart = System.nanoTime()
+                    @Suppress("unused") val demoHash = "demographics-enrichment".repeat(50).hashCode()
+                    log.debug("Simulated demographics API call in {}µs", (System.nanoTime() - demoStart) / 1000)
 
                     mapOf(
                         "source" to "demographics-api",
@@ -89,8 +93,10 @@ class DataEnrichmentWorkflow {
                 handler { ctx ->
                     log.info("Enriching financials for execution {}", ctx.executionId)
 
-                    // Simulate financials API call
-                    Thread.sleep(200)
+                    // Simulates financials API call latency (e.g., REST call to financial data provider)
+                    val finStart = System.nanoTime()
+                    @Suppress("unused") val finHash = "financials-enrichment".repeat(50).hashCode()
+                    log.debug("Simulated financials API call in {}µs", (System.nanoTime() - finStart) / 1000)
 
                     mapOf(
                         "source" to "financials-api",
@@ -113,8 +119,10 @@ class DataEnrichmentWorkflow {
                 handler { ctx ->
                     log.info("Enriching social data for execution {}", ctx.executionId)
 
-                    // Simulate social media API call
-                    Thread.sleep(120)
+                    // Simulates social media API call latency (e.g., REST call to social data aggregator)
+                    val socialStart = System.nanoTime()
+                    @Suppress("unused") val socialHash = "social-enrichment".repeat(50).hashCode()
+                    log.debug("Simulated social API call in {}µs", (System.nanoTime() - socialStart) / 1000)
 
                     mapOf(
                         "source" to "social-api",
@@ -141,8 +149,10 @@ class DataEnrichmentWorkflow {
                 val financials = ctx.parallelOutputs["enrich-financials"]
                 val social = ctx.parallelOutputs["enrich-social"]
 
-                // Simulate merge processing
-                Thread.sleep(50)
+                // Simulates merge processing (e.g., data normalization and deduplication)
+                val mergeStart = System.nanoTime()
+                @Suppress("unused") val mergeHash = listOf(demographics, financials, social).hashCode()
+                log.debug("Simulated merge processing in {}µs", (System.nanoTime() - mergeStart) / 1000)
 
                 mapOf(
                     "entityId" to ((ctx.executionInput as? Map<*, *>)?.get("entityId") ?: "UNKNOWN"),

@@ -62,8 +62,8 @@ class BranchStepsBuilder {
      * Define a step within this branch. Steps execute sequentially
      * within the branch.
      */
-    fun step(name: String, block: StepBuilder.() -> Unit) {
-        steps.add(StepBuilder(name).apply(block).build())
+    fun step(name: String, block: StepBuilder<Any?, Any?>.() -> Unit) {
+        steps.add(StepBuilder<Any?, Any?>(name).apply(block).build())
     }
 
     fun build(): List<StepDefinition> = steps.toList()

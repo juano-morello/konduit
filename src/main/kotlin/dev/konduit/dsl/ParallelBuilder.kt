@@ -27,8 +27,8 @@ class ParallelBuilder(private val name: String) {
      * Define a step within this parallel block.
      * All steps in a parallel block execute concurrently.
      */
-    fun step(name: String, block: StepBuilder.() -> Unit) {
-        steps.add(StepBuilder(name).apply(block).build())
+    fun step(name: String, block: StepBuilder<Any?, Any?>.() -> Unit) {
+        steps.add(StepBuilder<Any?, Any?>(name).apply(block).build())
     }
 
     fun build(): ParallelBlock = ParallelBlock(

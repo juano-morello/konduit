@@ -41,8 +41,10 @@ class NpoOnboardingWorkflow {
                 val input = ctx.input as? Map<*, *> ?: emptyMap<String, Any>()
                 val orgName = input["orgName"]?.toString() ?: "Unknown Org"
 
-                // Simulate validation latency
-                Thread.sleep(100)
+                // Simulates validation latency (e.g., schema validation + business rules check)
+                val valStart = System.nanoTime()
+                @Suppress("unused") val validationHash = orgName.hashCode() + (input["ein"]?.hashCode() ?: 0)
+                log.debug("Simulated validation in {}µs", (System.nanoTime() - valStart) / 1000)
 
                 mapOf(
                     "orgName" to orgName,
@@ -63,8 +65,10 @@ class NpoOnboardingWorkflow {
                 log.info("Running KYC check for execution {}", ctx.executionId)
                 val input = ctx.input as? Map<*, *> ?: emptyMap<String, Any>()
 
-                // Simulate external KYC service call
-                Thread.sleep(200)
+                // Simulates external KYC service call latency (e.g., REST call to compliance provider)
+                val kycStart = System.nanoTime()
+                @Suppress("unused") val kycHash = input.hashCode()
+                log.debug("Simulated KYC check in {}µs", (System.nanoTime() - kycStart) / 1000)
 
                 mapOf(
                     "orgName" to (input["orgName"] ?: "Unknown"),
@@ -87,8 +91,10 @@ class NpoOnboardingWorkflow {
                 log.info("Provisioning account for execution {}", ctx.executionId)
                 val input = ctx.input as? Map<*, *> ?: emptyMap<String, Any>()
 
-                // Simulate account creation
-                Thread.sleep(150)
+                // Simulates account creation latency (e.g., provisioning in external system)
+                val provStart = System.nanoTime()
+                @Suppress("unused") val provHash = input.hashCode()
+                log.debug("Simulated account provisioning in {}µs", (System.nanoTime() - provStart) / 1000)
 
                 val accountId = "NPO-${System.currentTimeMillis()}"
                 mapOf(
@@ -111,8 +117,10 @@ class NpoOnboardingWorkflow {
                 log.info("Sending welcome notification for execution {}", ctx.executionId)
                 val input = ctx.input as? Map<*, *> ?: emptyMap<String, Any>()
 
-                // Simulate sending notification
-                Thread.sleep(50)
+                // Simulates sending notification latency (e.g., email/SMS API call)
+                val notifStart = System.nanoTime()
+                @Suppress("unused") val notifHash = input.hashCode()
+                log.debug("Simulated notification send in {}µs", (System.nanoTime() - notifStart) / 1000)
 
                 mapOf(
                     "accountId" to (input["accountId"] ?: "unknown"),
