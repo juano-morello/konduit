@@ -21,6 +21,12 @@ Konduit demonstrates production-grade patterns for task queuing (PostgreSQL `SKI
 - **Horizontal Scaling** — Multiple Konduit instances share the same PostgreSQL + Redis, with zero-duplicate task processing guaranteed by `SKIP LOCKED` + optimistic locking
 - **Observability** — Micrometer/Prometheus metrics, structured JSON logging with MDC correlation IDs, execution timeline API
 - **Operational APIs** — REST endpoints for executions, workflows, dead letters, workers, and system stats
+- **OpenAPI/Swagger Documentation** — Auto-generated API docs at `/swagger-ui.html`
+- **Execution Webhooks** — Push-based notification on workflow completion/failure
+- **Data Retention** — Configurable cleanup of completed execution data
+- **Task Priority** — Priority-based task ordering in the queue
+- **Task Metadata** — Arbitrary key-value metadata on tasks
+- **Workflow Versioning** — Version validation and tracking at startup ([ADR-009](docs/adr/009-workflow-versioning.md))
 
 ## Architecture
 
@@ -40,7 +46,7 @@ See [docs/architecture.md](docs/architecture.md) for the full architecture overv
 | `api` | REST controllers, DTOs, error handling |
 | `observability` | Micrometer metrics, correlation filter, structured logging |
 | `persistence` | JPA entities, Spring Data repositories |
-| `config` | Redis configuration, health indicators |
+| `config` | Redis configuration, health indicators, OpenAPI docs, NoOp meter registry |
 
 ## Performance Architecture
 
@@ -245,7 +251,7 @@ konduit/
 ├── CONTRIBUTING.md
 ├── docs/
 │   ├── architecture.md           # Architecture overview and component diagram
-│   └── adr/                      # Architecture Decision Records (ADR-001 through ADR-008)
+│   └── adr/                      # Architecture Decision Records (ADR-001 through ADR-009)
 ├── scripts/
 │   ├── stress-test.sh            # Single-instance burst/soak stress test
 │   └── scale-test.sh             # Multi-instance zero-duplicate verification
@@ -269,8 +275,8 @@ konduit/
     │       ├── application.yml            # Default configuration
     │       ├── application-prod.yml       # Production overrides
     │       ├── logback-spring.xml         # Structured JSON logging config
-    │       └── db/migration/              # Flyway migrations (V1 through V7)
-    └── test/kotlin/dev/konduit/          # 16 test files, mirrors main structure
+    │       └── db/migration/              # Flyway migrations (V1 through V11)
+    └── test/kotlin/dev/konduit/          # 27 test files, mirrors main structure
 ```
 
 ## Available Scripts & Commands
@@ -532,9 +538,13 @@ All configuration properties are under the `konduit.*` prefix in `application.ym
 
 ### Test Coverage
 
-The test suite includes 111 tests covering:
+The test suite includes 184 tests across 27 test files covering:
 - **Unit tests**: DSL builders, retry calculation, backoff strategies
-- **Integration tests**: Full workflow execution (sequential, parallel, branching), task queue concurrency, dead letter handling, worker lifecycle, API endpoints, metrics, and health checks
+- **Integration tests**: Full workflow execution (sequential, parallel, branching), task queue concurrency, dead letter handling, worker lifecycle
+- **API controller tests**: REST endpoint validation, error handling, pagination
+- **Metrics tests**: Prometheus metric recording and exposure
+- **Health check tests**: Custom health indicator verification
+- **Task completion tests**: End-to-end task lifecycle, priority ordering, metadata propagation
 
 ### Stress & Scale Tests
 
@@ -614,6 +624,7 @@ All architectural decisions are documented in the `docs/adr/` directory:
 | [ADR-006](docs/adr/006-redis-hybrid-signaling.md) | Redis as Optional Hybrid Signaling Layer |
 | [ADR-007](docs/adr/007-orphan-reclamation.md) | Lock-Timeout-Based Orphan Reclamation |
 | [ADR-008](docs/adr/008-postgres-enum-mapping.md) | PostgreSQL Custom Enum Type Mapping |
+| [ADR-009](docs/adr/009-workflow-versioning.md) | Workflow Versioning |
 
 ## Technology Stack
 
