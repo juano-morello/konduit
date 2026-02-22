@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -13,30 +17,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_DB: konduit
-          POSTGRES_USER: konduit
-          POSTGRES_PASSWORD: konduit
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U konduit -d konduit"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 5
-
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 5
+    permissions:
+      contents: read
+      checks: write
 
     steps:
       - name: Checkout
@@ -48,30 +31,19 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Build
-        run: ./gradlew build --no-daemon
+        run: ./gradlew build
 
-      - name: Test
-        run: ./gradlew test --no-daemon
-        env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/konduit
-          SPRING_DATASOURCE_USERNAME: konduit
-          SPRING_DATASOURCE_PASSWORD: konduit
-          SPRING_DATA_REDIS_HOST: localhost
-          SPRING_DATA_REDIS_PORT: 6379
+      - name: Test Report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: JUnit Test Results
+          path: build/test-results/test/*.xml
+          reporter: java-junit
 
       - name: Upload test results
         if: always()
@@ -79,4 +51,58 @@ jobs:
         with:
           name: test-results
           path: build/reports/tests/
+
+  docker:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/juano-morello/konduit:latest
+            ghcr.io/juano-morello/konduit:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  dependency-submission:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Submit dependencies
+        uses: gradle/actions/dependency-submission@v4
 
